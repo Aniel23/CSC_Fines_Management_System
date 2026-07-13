@@ -1,0 +1,91 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  try {
+    const supabaseClient = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+        },
+      }
+    );
+
+    const { student_id, name, age, gender, department, password } = await req.json();
+
+    if (!student_id || !name || !password) {
+      throw new Error("Missing required fields: student_id, name, password");
+    }
+
+    const email = `${student_id}@student.local`.toLowerCase();
+
+    // 1. Create the user in auth.users
+    const { data: authData, error: authError } = await supabaseClient.auth.admin.createUser({
+      email: email,
+      password: password,
+      email_confirm: true,
+      user_metadata: { name: name, role: 'student', student_id: student_id }
+    });
+
+    if (authError) {
+      console.error("Error creating auth user:", authError);
+      // Check if user already exists
+      if (authError.message.includes("already registered")) {
+        throw new Error("Student ID already registered. Please contact support or use a different ID.");
+      }
+      throw authError;
+    }
+
+    const userId = authData.user.id;
+
+    // 2. Call the database function to create/link the student profile
+    // Note: age, gender, department should be passed correctly
+    const { error: dbError } = await supabaseClient.rpc("register_new_student", {
+      p_student_id: student_id,
+      p_name: name,
+      p_age: Number(age),
+      p_gender: gender,
+      p_department: department,
+      p_user_id: userId
+    });
+
+    if (dbError) {
+      console.error("Error linking student profile:", dbError);
+      // Clean up the auth user if profile creation fails?
+      // await supabaseClient.auth.admin.deleteUser(userId);
+      throw dbError;
+    }
+
+    return new Response(
+      JSON.stringify({ 
+        message: "Student registered successfully", 
+        user: authData.user 
+      }),
+      {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      }
+    );
+  } catch (error) {
+    console.error("Error in register-student function:", error);
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400,
+      }
+    );
+  }
+});

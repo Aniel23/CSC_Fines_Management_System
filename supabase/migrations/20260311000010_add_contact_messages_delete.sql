@@ -1,0 +1,9 @@
+-- Add missing DELETE policy for contact_messages
+DO $$ BEGIN
+    CREATE POLICY "Admins can delete contact messages"
+      ON public.contact_messages FOR DELETE
+      TO authenticated
+      USING (public.has_role(auth.uid(), 'admin'));
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;

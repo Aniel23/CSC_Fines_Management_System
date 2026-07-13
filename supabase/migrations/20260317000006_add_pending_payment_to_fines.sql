@@ -1,0 +1,1 @@
+ALTER TABLE public.fines ADD COLUMN pending_payment NUMERIC DEFAULT 0;

@@ -1,0 +1,4 @@
+[functions."contact-admin"]
+verify_jwt = false
+
+ 
