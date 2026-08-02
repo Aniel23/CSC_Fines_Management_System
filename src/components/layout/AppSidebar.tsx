@@ -1,14 +1,12 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   Home,
-  Users,
   FileText,
   Info,
   BarChart3,
   Receipt,
   GraduationCap,
   X,
-  ChevronDown,
   CreditCard,
   PlusCircle,
   User,
@@ -53,16 +51,19 @@ interface AppSidebarProps {
   onClose?: () => void;
   isDark?: boolean;
   toggleDark?: () => void;
+  onRequestSignOut?: () => void;
 }
 
-export function AppSidebar({ open = false, onClose, isDark, toggleDark }: AppSidebarProps) {
+export function AppSidebar({ open = false, onClose, isDark, toggleDark, onRequestSignOut }: AppSidebarProps) {
   const location = useLocation();
+  const navigate = useNavigate();
   const { user, logout } = useAuth();
   const navItems = user?.role === "admin" ? adminNavItems : studentNavItems;
 
   const handleSignOut = () => {
-    logout();
-    navigate("/");
+    if (typeof onRequestSignOut === "function") {
+      onRequestSignOut();
+    }
     onClose?.();
   };
 
@@ -70,52 +71,9 @@ export function AppSidebar({ open = false, onClose, isDark, toggleDark }: AppSid
     navigate("/profile");
     onClose?.();
   };
-  const navigate = useNavigate();
-  const [departmentOpen, setDepartmentOpen] = useState(false);
-  const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
-  const [dbDepartments, setDbDepartments] = useState<string[]>([]);
-
-  useEffect(() => {
-    // Load departments from database
-    const loadDepartments = async () => {
-      if (user?.role === 'admin') {
-        try {
-          const depts = await getDepartments();
-          
-          if (depts && depts.length > 0) {
-            // Extract department codes from full names
-            const deptCodes = depts.map((dept: any) => {
-              if (dept.name.includes('Information Systems')) return 'BSIS';
-              if (dept.name.includes('Technical-Vocational')) return 'BTVTED';
-              if (dept.name.includes('Public Administration')) return 'BPA';
-              return dept.name;
-            });
-            
-            const uniqueDepts = Array.from(new Set(deptCodes)).filter(Boolean);
-            setDbDepartments(uniqueDepts);
-          } else {
-            // Fallback to default if empty
-            setDbDepartments(DEFAULT_DEPARTMENTS);
-          }
-        } catch (error) {
-          console.error("Error loading departments:", error);
-          setDbDepartments(DEFAULT_DEPARTMENTS); // Fallback to default data
-        }
-      } else {
-      }
-    };
-
-    loadDepartments();
-  }, [user?.role]);
 
   const handleNavClick = () => {
     // No-op. The sidebar is always open.
-  };
-
-  const handleDepartmentSelect = (dept: string) => {
-    setSelectedDepartment(dept);
-    navigate(`/students?department=${encodeURIComponent(dept)}`);
-    setDepartmentOpen(false);
   };
 
   return (
@@ -194,49 +152,6 @@ export function AppSidebar({ open = false, onClose, isDark, toggleDark }: AppSid
               );
             })}
 
-            {/* Mobile Department Dropdown - Admin Only */}
-            {user?.role === "admin" && (
-              <div className="relative">
-                <button
-                  onClick={() => setDepartmentOpen(!departmentOpen)}
-                  className={cn(
-                    "sidebar-nav-item w-full",
-                    location.pathname === "/students" && "sidebar-nav-item-active"
-                  )}
-                >
-                  <Users className="h-5 w-5" />
-                  <span className="truncate">
-                    {selectedDepartment ? `Students (${selectedDepartment})` : "Students"}
-                  </span>
-                  <ChevronDown className={`h-4 w-4 transition-transform ${departmentOpen ? 'rotate-180' : ''}`} />
-                </button>
-
-                {departmentOpen && (
-                  <div className="absolute left-0 right-0 top-full mt-1 bg-sidebar-accent rounded-md shadow-lg z-50 border border-sidebar-border max-h-[300px] overflow-y-auto">
-                    {dbDepartments.length > 0 ? (
-                      dbDepartments.map((dept) => (
-                        <button
-                          key={dept}
-                          onClick={() => {
-                            setSelectedDepartment(dept);
-                            navigate(`/students?department=${encodeURIComponent(dept)}`);
-                            setDepartmentOpen(false);
-                            onClose?.();
-                          }}
-                          className="w-full text-left px-4 py-2 hover:bg-sidebar-primary/20 transition-colors text-sm text-sidebar-foreground first:rounded-t-md last:rounded-b-md"
-                        >
-                          {dept}
-                        </button>
-                      ))
-                    ) : (
-                      <div className="px-4 py-2 text-sm text-muted-foreground">
-                        Loading departments...
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
           </nav>
 
           <div className="p-4 border-t border-sidebar-border mt-auto flex-shrink-0 space-y-1 bg-sidebar">
@@ -276,51 +191,8 @@ function SidebarContent({ expanded, onNavClick }: { expanded?: boolean; onNavCli
   const navigate = useNavigate();
   const { user } = useAuth();
   const navItems = user?.role === "admin" ? adminNavItems : studentNavItems;
-  const [departmentOpen, setDepartmentOpen] = useState(false);
-  const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
-  const [dbDepartments, setDbDepartments] = useState<string[]>([]);
-
-  useEffect(() => {
-    // Load departments from database
-    const loadDepartments = async () => {
-      if (user?.role === 'admin') {
-        try {
-          console.log('[SidebarContent] Loading departments from database...');
-          const depts = await getDepartments();
-          console.log('[SidebarContent] Raw departments from DB:', depts);
-          
-          // Extract department codes from full names
-          const deptCodes = depts.map((dept: any) => {
-            console.log('[SidebarContent] Processing department:', dept.name);
-            if (dept.name.includes('Information Systems')) return 'BSIS';
-            if (dept.name.includes('Technical-Vocational')) return 'BTVTED';
-            if (dept.name.includes('Public Administration')) return 'BPA';
-            return dept.name;
-          });
-          
-          console.log('[SidebarContent] Mapped department codes:', deptCodes);
-          setDbDepartments(deptCodes);
-        } catch (error) {
-          console.error('[SidebarContent] Error loading departments:', error);
-          console.log('[SidebarContent] Falling back to mock departments:', DEFAULT_DEPARTMENTS);
-          setDbDepartments(DEFAULT_DEPARTMENTS); // Fallback to mock data
-        }
-      } else {
-        console.log('[SidebarContent] User is not admin, skipping department load');
-      }
-    };
-
-    loadDepartments();
-  }, [user?.role]);
-
   const isExpanded = !!expanded;
   const isAdmin = user?.role === "admin";
-
-  const handleDepartmentSelect = (dept: string) => {
-    setSelectedDepartment(dept);
-    navigate(`/students?department=${encodeURIComponent(dept)}`);
-    setDepartmentOpen(false);
-  };
 
   return (
     <>
@@ -344,45 +216,6 @@ function SidebarContent({ expanded, onNavClick }: { expanded?: boolean; onNavCli
           );
         })}
 
-        {/* Department Dropdown - Admin Only */}
-        {isAdmin && (
-          <div className="relative">
-            <button
-              onClick={() => setDepartmentOpen(!departmentOpen)}
-              className={cn(
-                "sidebar-nav-item w-full",
-                isExpanded ? 'justify-start' : 'justify-center',
-                location.pathname === "/students" && "sidebar-nav-item-active"
-              )}
-            >
-              <Users className="h-5 w-5" />
-              <span className={`ml-3 truncate transition-opacity duration-200 ${isExpanded ? 'opacity-100' : 'opacity-0'}`}>
-                {selectedDepartment ? `Students (${selectedDepartment})` : "Students"}
-              </span>
-              <ChevronDown className={`h-4 w-4 transition-transform ml-auto ${isExpanded ? 'opacity-100' : 'opacity-0'} ${departmentOpen ? 'rotate-180' : ''}`} />
-            </button>
-
-            {departmentOpen && isExpanded && (
-              <div className="absolute left-0 right-0 top-full mt-1 bg-sidebar-accent rounded-md shadow-lg z-50 border border-sidebar-border max-h-[300px] overflow-y-auto">
-                {dbDepartments.length > 0 ? (
-                  dbDepartments.map((dept) => (
-                    <button
-                      key={dept}
-                      onClick={() => handleDepartmentSelect(dept)}
-                      className="w-full text-left px-4 py-2 hover:bg-sidebar-primary/20 transition-colors text-sm text-sidebar-foreground first:rounded-t-md last:rounded-b-md"
-                    >
-                      {dept}
-                    </button>
-                  ))
-                ) : (
-                  <div className="px-4 py-2 text-sm text-muted-foreground">
-                    Loading departments...
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
       </nav>
 
       <div className="p-4 border-t border-sidebar-border">

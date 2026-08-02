@@ -171,7 +171,12 @@ export async function updateFine(
 }
 
 export async function deleteFine(id: string) {
-  const { error } = await supabase.from("fines").delete().eq("id", id);
+  // Always soft-delete fines to preserve any associated transactions.
+  // This avoids removing the fine record entirely when it is referenced by payments.
+  const { error } = await supabase
+    .from("fines")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", id);
 
   if (error) throw error;
 }

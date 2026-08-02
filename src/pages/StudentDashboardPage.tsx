@@ -89,9 +89,10 @@ export default function StudentDashboardPage() {
     <AppLayout>
       <div className="content-wrapper pt-0">
         {/* Header with Profile */}
-        <div className="flex flex-col md:flex-row items-center gap-6 mb-8">
-          <div className="relative group">
-            <Avatar className="h-24 w-24 border-4 border-primary/20 shrink-0">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-8">
+          <div className="flex items-center gap-6">
+            <div className="relative group">
+              <Avatar className="h-24 w-24 border-4 border-primary/20 shrink-0">
               {(user?.avatarUrl || studentData.photo_url) && (
                 <AvatarImage 
                   src={user?.avatarUrl || studentData.photo_url} 
@@ -103,20 +104,47 @@ export default function StudentDashboardPage() {
                 {studentData.name.slice(0, 2).toUpperCase()}
               </AvatarFallback>
             </Avatar>
-          </div>
-          <div className="text-center md:text-left">
-            <h1 className="font-display text-3xl font-bold text-foreground">
-              Welcome, {studentData.name}
-            </h1>
-            <div className="flex flex-wrap justify-center md:justify-start gap-2 mt-2">
-              <Badge variant="secondary" className="bg-primary/10 text-primary hover:bg-primary/20">
-                {studentData.student_id}
-              </Badge>
-              <Badge variant="outline" className="border-accent/30 text-accent">
-                {studentData.department}
-              </Badge>
+            </div>
+            <div className="text-center md:text-left">
+              <h1 className="font-display text-3xl font-bold text-foreground">
+                Welcome, {studentData.name}
+              </h1>
+              <div className="flex flex-wrap justify-center md:justify-start gap-2 mt-2">
+                <Badge variant="secondary" className="bg-primary/10 text-primary hover:bg-primary/20">
+                  {studentData.student_id}
+                </Badge>
+                <Badge variant="outline" className="border-accent/30 text-accent">
+                  {studentData.department}
+                </Badge>
+              </div>
             </div>
           </div>
+
+          {/* Compact Attention card for md+ aligned to the right */}
+          {toPayFines.length > 0 && (
+            <div className="hidden md:flex items-center">
+              <Card className="card-elevated border-warning/20 p-3 w-80">
+                <CardContent className="p-2">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-full bg-warning/20 flex items-center justify-center shrink-0">
+                        <AlertCircle className="h-5 w-5 text-warning" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-foreground">Attention Required</p>
+                        <p className="text-xs text-muted-foreground mt-1">{toPayFines.length} outstanding • ₱{totalOutstandingAmount.toLocaleString()}</p>
+                      </div>
+                    </div>
+                    <Link to="/student-payment">
+                      <Button size="sm" className="bg-warning hover:bg-warning/90 text-white font-bold h-9 px-3">
+                        Pay
+                      </Button>
+                    </Link>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
         </div>
 
         {/* Summary Statistics */}
@@ -474,9 +502,9 @@ export default function StudentDashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Action Card */}
+        {/* Action Card (mobile only) */}
         {toPayFines.length > 0 && (
-          <Card className="card-elevated mt-8 border-warning/50 bg-warning/5 relative overflow-hidden group">
+          <Card className="card-elevated mt-8 border-warning/50 bg-warning/5 relative overflow-hidden group md:hidden">
             <div className="absolute top-0 right-0 p-8 opacity-10 transform translate-x-4 -translate-y-4 group-hover:scale-110 transition-transform">
               <AlertCircle className="h-32 w-32 text-warning" />
             </div>

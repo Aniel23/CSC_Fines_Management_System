@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader, Mail, CheckCircle, Trash2, Clock, Search, ArrowRight, Archive, RefreshCw, Trash2 as TrashIcon } from "lucide-react";
+import { Loader, Mail, CheckCircle, Trash2, Clock, Search, ArrowRight, Archive, RefreshCw, Trash2 as TrashIcon, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -471,12 +471,16 @@ export default function AdminMessagesPage() {
                               <Button
                                 type="button"
                                 variant="secondary"
-                                onClick={() => window.location.href = `mailto:${msg.email}`}
+                                onClick={() => {
+                                  const to = encodeURIComponent(msg.email || "");
+                                  const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${to}`;
+                                  window.open(gmailUrl, "_blank");
+                                }}
                               >
                                 <Mail className="h-4 w-4 mr-2" />
                                 Reply
                               </Button>
-                            </DialogFooter>
+                          </DialogFooter>
                           </DialogContent>
                           </Dialog>
                         </TableCell>
@@ -488,7 +492,21 @@ export default function AdminMessagesPage() {
             )}
           </CardContent>
         </Card>
+        {/* Floating compose button (bottom-right) */}
+        <div className="fixed bottom-4 right-4 z-50">
+          <Button
+            className="h-12 w-12 rounded-full p-0 flex items-center justify-center shadow-lg"
+            onClick={() => {
+              const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1`;
+              window.open(gmailUrl, "_blank");
+            }}
+            aria-label="Compose new message"
+          >
+            <Plus className="h-5 w-5" />
+          </Button>
+        </div>
       </div>
     </AppLayout>
   );
 }
+

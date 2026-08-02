@@ -20,8 +20,6 @@ import {
   getDepartments 
 } from "@/integrations/supabase/queries";
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-
 export default function AdminTransactionsPage() {
   const { fines, loading: finesLoading, error: finesError } = useFines('all');
   const { students, loading: studentsLoading, error: studentsError } = useStudents();
@@ -29,7 +27,6 @@ export default function AdminTransactionsPage() {
   const [selectedDepartment, setSelectedDepartment] = useState<string>("");
   const [selectedStatus, setSelectedStatus] = useState<string>("");
   const [dbDepartments, setDbDepartments] = useState<string[]>([]);
-  const [viewFilter, setViewFilter] = useState<"active" | "archived" | "binned">("active");
 
   useEffect(() => {
     loadDepartments();
@@ -111,12 +108,6 @@ export default function AdminTransactionsPage() {
 
   // fines.student_id is the UUID (foreign key to students.id)
   let recentFines = fines
-    .filter(f => {
-      if (viewFilter === 'active') return !f.deleted_at && !f.is_archived;
-      if (viewFilter === 'archived') return f.is_archived && !f.deleted_at;
-      if (viewFilter === 'binned') return !!f.deleted_at;
-      return true;
-    })
     .map((fine) => ({
       ...fine,
       student: students.find((s) => s.id === fine.student_id),
@@ -286,13 +277,6 @@ export default function AdminTransactionsPage() {
               <Clock className="h-5 w-5" />
               Latest Recorded Fines
             </CardTitle>
-            <Tabs value={viewFilter} onValueChange={(v: any) => setViewFilter(v)} className="w-full sm:w-auto">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="active">Active</TabsTrigger>
-                <TabsTrigger value="archived">Archived</TabsTrigger>
-                <TabsTrigger value="binned">Bin</TabsTrigger>
-              </TabsList>
-            </Tabs>
           </CardHeader>
           <CardContent>
             {recentFines.length > 0 ? (

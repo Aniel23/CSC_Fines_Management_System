@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,6 +12,40 @@ import {
   DialogTrigger,
   DialogFooter
 } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { 
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage
+} from '@/components/ui/form';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { 
   Building2, 
   Plus, 
@@ -19,11 +53,16 @@ import {
   Trash2, 
   Users,
   Search,
-  Filter
+  Filter,
+  Archive,
+  RefreshCw,
+  AlertTriangle
 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { toast } from 'sonner';
-import { createDepartment, getDepartments, updateDepartment, deleteDepartment } from '@/integrations/supabase/queries';
+import { createDepartment, getDepartments, updateDepartment, deleteDepartment, createStudent, updateStudent, deleteStudent, binStudent, restoreStudent, archiveStudent, unarchiveStudent } from '@/integrations/supabase/queries';
+import { useStudents } from '@/hooks/useStudents';
+import type { Student } from '@/types';
 
 interface Department {
   id: string;
@@ -43,6 +82,21 @@ export default function DepartmentManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingDepartment, setEditingDepartment] = useState<Department | null>(null);
+  const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
+  const [studentModalOpen, setStudentModalOpen] = useState(false);
+  const [studentViewFilter, setStudentViewFilter] = useState<'active' | 'archived' | 'binned'>('active');
+  const [studentSearch, setStudentSearch] = useState('');
+  const [studentDialogOpen, setStudentDialogOpen] = useState(false);
+  const [editingStudent, setEditingStudent] = useState<Student | null>(null);
+  const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
+  const [studentForm, setStudentForm] = useState({
+    student_id: '',
+    name: '',
+    age: 18,
+    gender: 'Male' as 'Male' | 'Female' | 'Other',
+    address: '',
+    department: ''
+  });
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -51,9 +105,168 @@ export default function DepartmentManagement() {
     contact_email: ''
   });
 
+  const { students: departmentStudents, loading: studentsLoading, error: studentsError, refetch: refetchStudents } = useStudents(selectedDepartment || undefined, studentViewFilter);
+
   useEffect(() => {
     loadDepartments();
   }, []);
+
+  useEffect(() => {
+    if (selectedDepartment) {
+      refetchStudents();
+    }
+  }, [selectedDepartment, studentViewFilter, refetchStudents]);
+
+  const filteredStudents = useMemo(() => {
+    const normalizedSearch = studentSearch.trim().toLowerCase();
+    return departmentStudents.filter((student) => {
+      if (!normalizedSearch) return true;
+      return (
+        student.name.toLowerCase().includes(normalizedSearch) ||
+        student.student_id.toLowerCase().includes(normalizedSearch)
+      );
+    });
+  }, [departmentStudents, studentSearch]);
+
+  const closeStudentModal = () => {
+    setStudentModalOpen(false);
+    setSelectedDepartment(null);
+    setStudentSearch('');
+    setStudentViewFilter('active');
+  };
+
+  const resetStudentForm = () => {
+    setStudentForm({
+      student_id: '',
+      name: '',
+      age: 18,
+      gender: 'Male',
+      address: '',
+      department: selectedDepartment || ''
+    });
+    setEditingStudent(null);
+  };
+
+  const openStudentDialog = (student?: Student) => {
+    if (student) {
+      setEditingStudent(student);
+      setStudentForm({
+        student_id: student.student_id,
+        name: student.name,
+        age: student.age,
+        gender: student.gender,
+        address: student.address || '',
+        department: student.department || selectedDepartment || ''
+      });
+    } else {
+      setEditingStudent(null);
+      setStudentForm({
+        student_id: '',
+        name: '',
+        age: 18,
+        gender: 'Male',
+        address: '',
+        department: selectedDepartment || ''
+      });
+    }
+    setStudentDialogOpen(true);
+  };
+
+  const saveStudent = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!studentForm.student_id.trim() || !studentForm.name.trim()) {
+      toast.error('Student ID and name are required');
+      return;
+    }
+
+    try {
+      if (editingStudent) {
+        await updateStudent(editingStudent.id, {
+          student_id: studentForm.student_id,
+          name: studentForm.name,
+          age: studentForm.age,
+          gender: studentForm.gender,
+          department: studentForm.department,
+          address: studentForm.address || null
+        });
+        toast.success('Student updated successfully');
+      } else {
+        await createStudent({
+          student_id: studentForm.student_id,
+          name: studentForm.name,
+          age: studentForm.age,
+          gender: studentForm.gender,
+          department: studentForm.department,
+          address: studentForm.address || null
+        });
+        toast.success('Student added successfully');
+      }
+      setStudentDialogOpen(false);
+      resetStudentForm();
+      refetchStudents();
+    } catch (error) {
+      console.error('Error saving student:', error);
+      toast.error('Failed to save student');
+    }
+  };
+
+  const handleStudentDelete = async () => {
+    if (!studentToDelete) return;
+    try {
+      await deleteStudent(studentToDelete.id);
+      toast.success('Student deleted permanently');
+      setStudentToDelete(null);
+      refetchStudents();
+    } catch (error) {
+      console.error('Error deleting student:', error);
+      toast.error('Failed to delete student');
+    }
+  };
+
+  const handleStudentBin = async (student: Student) => {
+    try {
+      await binStudent(student.id);
+      toast.success('Student moved to bin');
+      refetchStudents();
+    } catch (error) {
+      console.error('Error binning student:', error);
+      toast.error('Failed to move student to bin');
+    }
+  };
+
+  const handleStudentRestore = async (student: Student) => {
+    try {
+      await restoreStudent(student.id);
+      toast.success('Student restored');
+      refetchStudents();
+    } catch (error) {
+      console.error('Error restoring student:', error);
+      toast.error('Failed to restore student');
+    }
+  };
+
+  const handleStudentArchive = async (student: Student) => {
+    try {
+      await archiveStudent(student.id);
+      toast.success('Student archived');
+      refetchStudents();
+    } catch (error) {
+      console.error('Error archiving student:', error);
+      toast.error('Failed to archive student');
+    }
+  };
+
+  const handleStudentUnarchive = async (student: Student) => {
+    try {
+      await unarchiveStudent(student.id);
+      toast.success('Student unarchived');
+      refetchStudents();
+    } catch (error) {
+      console.error('Error unarchiving student:', error);
+      toast.error('Failed to unarchive student');
+    }
+  };
 
   const loadDepartments = async () => {
     try {
@@ -150,6 +363,8 @@ export default function DepartmentManagement() {
     dept.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     dept.head_of_department?.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const selectedDepartmentInfo = departments.find((dept) => dept.name === selectedDepartment);
 
   return (
     <AppLayout>
@@ -271,7 +486,26 @@ export default function DepartmentManagement() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredDepartments.map((department) => (
-                <Card key={department.id} className="hover:shadow-lg transition-shadow">
+                <Card
+                  key={department.id}
+                  className="hover:shadow-lg transition-shadow cursor-pointer"
+                  onClick={() => {
+                    setSelectedDepartment(department.name);
+                    setStudentSearch('');
+                    setStudentViewFilter('active');
+                    setStudentModalOpen(true);
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      setSelectedDepartment(department.name);
+                      setStudentSearch('');
+                      setStudentViewFilter('active');
+                      setStudentModalOpen(true);
+                    }
+                  }}
+                >
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-2">
@@ -319,14 +553,20 @@ export default function DepartmentManagement() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => handleEdit(department)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEdit(department);
+                          }}
                         >
                           <Edit className="h-3 w-3" />
                         </Button>
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => handleDelete(department)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(department);
+                          }}
                           className="text-destructive hover:text-destructive"
                         >
                           <Trash2 className="h-3 w-3" />
@@ -362,6 +602,290 @@ export default function DepartmentManagement() {
               </CardContent>
             </Card>
           )}
+
+          <Dialog open={studentModalOpen} onOpenChange={setStudentModalOpen}>
+            <DialogContent className="max-w-6xl w-full">
+              <DialogHeader className="pr-10">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <DialogTitle>
+                      {selectedDepartment ? `${selectedDepartment} Students` : 'Students'}
+                    </DialogTitle>
+                    <p className="text-sm text-muted-foreground mt-2">
+                      {selectedDepartmentInfo?.description || `Showing students in ${selectedDepartment || 'selected'} department.`}
+                    </p>
+                  </div>
+                  <Button onClick={() => openStudentDialog()}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Student
+                  </Button>
+                </div>
+              </DialogHeader>
+
+              <div className="space-y-6">
+                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {filteredStudents.length} student{filteredStudents.length === 1 ? '' : 's'} found
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+                    <div className="relative flex-1 sm:flex-none">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                      <Input
+                        placeholder="Search students..."
+                        value={studentSearch}
+                        onChange={(e) => setStudentSearch(e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
+                    <Tabs value={studentViewFilter} onValueChange={(value: 'active' | 'archived' | 'binned') => setStudentViewFilter(value)} className="w-full sm:w-auto">
+                      <TabsList className="grid w-full grid-cols-3">
+                        <TabsTrigger value="active">Active</TabsTrigger>
+                        <TabsTrigger value="archived">Archived</TabsTrigger>
+                        <TabsTrigger value="binned">Bin</TabsTrigger>
+                      </TabsList>
+                    </Tabs>
+                  </div>
+                </div>
+
+                {studentsLoading ? (
+                  <div className="flex justify-center items-center h-40">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                  </div>
+                ) : studentsError ? (
+                  <Card className="border-destructive/50 bg-destructive/5">
+                    <CardContent>
+                      <p className="text-sm text-destructive-foreground">Error loading students: {studentsError}</p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Student ID</TableHead>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Age</TableHead>
+                          <TableHead>Gender</TableHead>
+                          <TableHead>Department</TableHead>
+                          <TableHead>Address</TableHead>
+                          <TableHead>Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredStudents.map((student) => (
+                          <TableRow key={student.id}>
+                            <TableCell>{student.student_id}</TableCell>
+                            <TableCell>{student.name}</TableCell>
+                            <TableCell>{student.age}</TableCell>
+                            <TableCell>{student.gender}</TableCell>
+                            <TableCell>{student.department}</TableCell>
+                            <TableCell className="max-w-xs truncate">{student.address || '-'}</TableCell>
+                            <TableCell>
+                              <div className="flex flex-wrap gap-2">
+                                {(studentViewFilter === 'active' || studentViewFilter === 'archived') && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => openStudentDialog(student)}
+                                    className="h-8 w-8 p-0"
+                                    title="Edit Student"
+                                  >
+                                    <Edit className="h-3 w-3" />
+                                  </Button>
+                                )}
+                                {studentViewFilter === 'active' && (
+                                  <>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleStudentArchive(student)}
+                                      className="h-8 w-8 p-0"
+                                      title="Archive Student"
+                                    >
+                                      <Archive className="h-3 w-3" />
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleStudentBin(student)}
+                                      className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                                      title="Move to Bin"
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </Button>
+                                  </>
+                                )}
+                                {studentViewFilter === 'archived' && (
+                                  <>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleStudentUnarchive(student)}
+                                      className="h-8 w-8 p-0"
+                                      title="Unarchive Student"
+                                    >
+                                      <RefreshCw className="h-3 w-3" />
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleStudentBin(student)}
+                                      className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                                      title="Move to Bin"
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </Button>
+                                  </>
+                                )}
+                                {studentViewFilter === 'binned' && (
+                                  <>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleStudentRestore(student)}
+                                      className="h-8 w-8 p-0"
+                                      title="Restore Student"
+                                    >
+                                      <RefreshCw className="h-3 w-3" />
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => setStudentToDelete(student)}
+                                      className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                                      title="Delete Permanently"
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={closeStudentModal}>
+                  Close
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={studentDialogOpen} onOpenChange={setStudentDialogOpen}>
+            <DialogContent className="sm:max-w-[520px]">
+              <DialogHeader>
+                <DialogTitle>{editingStudent ? 'Edit Student' : 'Add Student'}</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={saveStudent} className="space-y-4">
+                <div className="grid grid-cols-1 gap-4">
+                  <div>
+                    <Label htmlFor="student_id">Student ID</Label>
+                    <Input
+                      id="student_id"
+                      value={studentForm.student_id}
+                      onChange={(e) => setStudentForm(prev => ({ ...prev, student_id: e.target.value }))}
+                      placeholder="2024-00001"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="name">Name</Label>
+                    <Input
+                      id="name"
+                      value={studentForm.name}
+                      onChange={(e) => setStudentForm(prev => ({ ...prev, name: e.target.value }))}
+                      placeholder="Juan Dela Cruz"
+                      required
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="age">Age</Label>
+                      <Input
+                        id="age"
+                        type="number"
+                        value={studentForm.age}
+                        onChange={(e) => setStudentForm(prev => ({ ...prev, age: Number(e.target.value) }))}
+                        min={15}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="gender">Gender</Label>
+                      <Select
+                        value={studentForm.gender}
+                        onValueChange={(value) => setStudentForm(prev => ({ ...prev, gender: value as 'Male' | 'Female' | 'Other' }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select gender" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Male">Male</SelectItem>
+                          <SelectItem value="Female">Female</SelectItem>
+                          <SelectItem value="Other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="department">Department</Label>
+                    <Input
+                      id="department"
+                      value={studentForm.department}
+                      onChange={(e) => setStudentForm(prev => ({ ...prev, department: e.target.value }))}
+                      placeholder="Department"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="address">Address</Label>
+                    <Input
+                      id="address"
+                      value={studentForm.address}
+                      onChange={(e) => setStudentForm(prev => ({ ...prev, address: e.target.value }))}
+                      placeholder="123 Main St"
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setStudentDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit">
+                    {editingStudent ? 'Save Changes' : 'Add Student'}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+
+          <AlertDialog open={!!studentToDelete} onOpenChange={(open) => !open && setStudentToDelete(null)}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete Student</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to permanently delete {studentToDelete?.name} ({studentToDelete?.student_id})? This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={handleStudentDelete}
+                >
+                  Delete Permanently
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
         </div>
       </div>
     </AppLayout>

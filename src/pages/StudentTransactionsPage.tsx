@@ -9,13 +9,11 @@ import { useStudents } from "@/hooks/useStudents";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTransactions } from "@/hooks/useTransactions";
 import { useState } from "react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function StudentTransactionsPage() {
   const { user } = useAuth();
-  const [viewFilter, setViewFilter] = useState<"active" | "archived" | "binned">("active");
-  const { fines, loading: finesLoading, error: finesError } = useFines(viewFilter);
-  const { transactions, loading: transLoading, error: transError } = useTransactions(viewFilter);
+  const { fines, loading: finesLoading, error: finesError } = useFines('all');
+  const { transactions, loading: transLoading, error: transError } = useTransactions();
   const { students: mockStudents, loading: studentsLoading, error: studentsError } = useStudents();
   const [showReceipt, setShowReceipt] = useState(false);
   const [currentReceipt, setCurrentReceipt] = useState<{
@@ -192,13 +190,6 @@ export default function StudentTransactionsPage() {
               <Clock className="h-5 w-5" />
               Your Payment History
             </CardTitle>
-            <Tabs value={viewFilter} onValueChange={(v: any) => setViewFilter(v)} className="w-full sm:w-auto">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="active">Active</TabsTrigger>
-                <TabsTrigger value="archived">Archived</TabsTrigger>
-                <TabsTrigger value="binned">Bin</TabsTrigger>
-              </TabsList>
-            </Tabs>
           </CardHeader>
           <CardContent>
             {myTransactions.length > 0 ? (

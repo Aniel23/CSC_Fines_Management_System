@@ -2,6 +2,14 @@ import { useState, useEffect } from "react";
 import { AppSidebar } from "./AppSidebar";
 import { Menu, Sun, Moon, User, LogOut } from "lucide-react";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
@@ -45,9 +53,12 @@ export function AppLayout({ children }: AppLayoutProps) {
   };
 
   const { user, logout } = useAuth();
+  const [showSignOutModal, setShowSignOutModal] = useState(false);
 
-  const signOut = () => {
-    logout();
+  const requestSignOut = () => setShowSignOutModal(true);
+  const confirmSignOut = async () => {
+    setShowSignOutModal(false);
+    await logout();
     navigate("/");
   };
 
@@ -78,11 +89,12 @@ export function AppLayout({ children }: AppLayoutProps) {
       <div
         className="absolute inset-0 bg-gradient-to-br from-[hsl(var(--bg-gradient-from))] via-[hsl(var(--bg-gradient-via))] to-[hsl(var(--bg-gradient-to))] transition-colors duration-500"
       />
-      <AppSidebar 
-        open={sidebarOpen} 
-        onClose={() => setSidebarOpen(false)} 
+      <AppSidebar
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
         isDark={dark}
         toggleDark={toggleDark}
+        onRequestSignOut={requestSignOut}
       />
 
       <div className="flex-1 min-h-screen flex flex-col pt-14 md:pt-0 relative z-10 md:ml-72">
@@ -139,15 +151,15 @@ export function AppLayout({ children }: AppLayoutProps) {
                 </Avatar>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem onClick={() => navigate('/profile')}>
-                <User className="mr-2 h-4 w-4" /> Profile
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={signOut}>
-                <LogOut className="mr-2 h-4 w-4" /> Sign out
-              </DropdownMenuItem>
-            </DropdownMenuContent>
+              <DropdownMenuContent>
+                <DropdownMenuItem onClick={() => navigate('/profile')}>
+                  <User className="mr-2 h-4 w-4" /> Profile
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={requestSignOut}>
+                  <LogOut className="mr-2 h-4 w-4" /> Sign out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
           </DropdownMenu>
           </div>
         </header>
@@ -155,6 +167,20 @@ export function AppLayout({ children }: AppLayoutProps) {
         <main className="flex-1 overflow-auto p-4 md:p-6 bg-blue-950/5 dark:bg-blue-950/10">
           {children}
         </main>
+        <Dialog open={showSignOutModal} onOpenChange={setShowSignOutModal}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Confirm sign out</DialogTitle>
+              <DialogDescription>Are you sure you want to log out?</DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setShowSignOutModal(false)}>Cancel</Button>
+                <Button variant="destructive" onClick={confirmSignOut}>Sign out</Button>
+              </div>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

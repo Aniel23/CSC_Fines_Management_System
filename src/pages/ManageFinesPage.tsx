@@ -166,11 +166,19 @@ export default function ManageFinesPage() {
   const pendingApprovalFines = studentFines.filter((f) => f.status === "Pending");
   
   const totalToPayAmount = toPayFines.reduce((sum, f) => sum + Number(f.balance || 0), 0);
-  const totalPendingAmount = pendingApprovalFines.reduce((sum, f) => sum + Number(f.balance || 0), 0);
+  const totalPendingAmount = pendingApprovalFines.reduce(
+    (sum, f) => sum + Number(f.pending_payment ?? f.balance ?? 0),
+    0
+  );
+  const totalPendingBalance = pendingApprovalFines.reduce(
+    (sum, f) => sum + Number(f.balance || 0),
+    0
+  );
   const paidCount = studentFines.filter((f) => f.status === "Paid").length;
-  const totalPaidAmount = studentFines
-    .filter((f) => f.status === "Paid")
-    .reduce((sum, f) => sum + Number(f.amount || 0), 0);
+  const totalPaidAmount = studentFines.reduce((sum, f) => {
+    const paidAmount = Number(f.amount || 0) - Number(f.balance || 0);
+    return sum + Math.max(0, paidAmount);
+  }, 0);
 
   // Handle image file selection
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -807,12 +815,13 @@ export default function ManageFinesPage() {
                       <p className="text-xl font-black text-warning">₱{totalToPayAmount.toLocaleString()}</p>
                     </div>
                     <div className="p-3 bg-info/5 rounded-lg border border-info/20">
-                      <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-1">Pending Amount</p>
+                      <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-1">Pending Approval</p>
                       <p className="text-xl font-black text-info">₱{totalPendingAmount.toLocaleString()}</p>
+                      <p className="text-[10px] text-muted-foreground mt-1">Balance: ₱{totalPendingBalance.toLocaleString()}</p>
                     </div>
                     <div className="p-3 bg-destructive/5 rounded-lg border border-destructive/20">
                       <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-1">Overall Balance</p>
-                      <p className="text-xl font-black text-destructive">₱{(totalToPayAmount + totalPendingAmount).toLocaleString()}</p>
+                      <p className="text-xl font-black text-destructive">₱{(totalToPayAmount + totalPendingBalance).toLocaleString()}</p>
                     </div>
                     <div className="p-3 bg-success/5 rounded-lg border border-success/20">
                       <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-1">Total Settled</p>

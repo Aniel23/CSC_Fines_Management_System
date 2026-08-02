@@ -12,9 +12,7 @@ export interface TransactionWithDetails {
   fines: (Fine & { students: Student | null }) | null;
 }
 
-export type TransactionsFilter = 'active' | 'archived' | 'binned' | 'all';
-
-export function useTransactions(filter: TransactionsFilter = 'active') {
+export function useTransactions() {
   const [transactions, setTransactions] = useState<TransactionWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -22,20 +20,10 @@ export function useTransactions(filter: TransactionsFilter = 'active') {
   const fetchTransactions = useCallback(async () => {
     try {
       setLoading(true);
-      let query = supabase
+      const { data, error: fetchError } = await supabase
         .from("transactions")
         .select("*, fines(*, students(*))")
         .order("payment_date", { ascending: false });
-
-      if (filter === 'active') {
-        query = query.is("deleted_at", null).eq("is_archived", false);
-      } else if (filter === 'archived') {
-        query = query.is("deleted_at", null).eq("is_archived", true);
-      } else if (filter === 'binned') {
-        query = query.not("deleted_at", "is", null);
-      }
-
-      const { data, error: fetchError } = await query;
 
       if (fetchError) throw fetchError;
       setTransactions(data || []);
@@ -47,7 +35,7 @@ export function useTransactions(filter: TransactionsFilter = 'active') {
     } finally {
       setLoading(false);
     }
-  }, [filter]);
+  }, []);
 
   useEffect(() => {
     fetchTransactions();
@@ -71,7 +59,7 @@ export function useTransactions(filter: TransactionsFilter = 'active') {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [fetchTransactions, filter]);
+  }, [fetchTransactions]);
 
   return { transactions, loading, error, refetch: fetchTransactions };
 }

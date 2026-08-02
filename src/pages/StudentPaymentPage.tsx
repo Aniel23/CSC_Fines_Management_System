@@ -24,13 +24,7 @@ import PaymentGateway from "@/components/payment/PaymentGateway";
 import type { PaymentResponse } from "@/lib/payment";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+
 import { Ticket } from "lucide-react";
 import { useTransactions } from "@/hooks/useTransactions";
 import { useAppSettings } from "@/hooks/useAppSettings";
@@ -778,24 +772,17 @@ export default function StudentPaymentPage() {
                                     </Button>
                                   </div>
                                 ) : (
-                                  <div className="flex gap-2">
-                                    <Select value={voucherCode} onValueChange={setVoucherCode}>
-                                      <SelectTrigger className="h-8 text-xs bg-background">
-                                        <SelectValue placeholder="Select a voucher" />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {vouchers.filter(v => v.isActive && (!v.expirationDate || new Date(v.expirationDate) >= new Date())).map(v => (
-                                          <SelectItem key={v.id} value={v.code}>
-                                            {v.code} - {v.description} (₱{v.amount})
-                                            {v.expirationDate && ` • Due: ${new Date(v.expirationDate).toLocaleDateString()}`}
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                    <Button 
+                                  <div className="flex gap-2 w-full">
+                                    <Input
+                                      value={voucherCode}
+                                      onChange={(e) => setVoucherCode(e.target.value)}
+                                      placeholder="Enter voucher code"
+                                      className="h-8 text-xs flex-1"
+                                    />
+                                    <Button
                                       onClick={handleApplyVoucher}
                                       disabled={!voucherCode}
-                                      size="sm" 
+                                      size="sm"
                                       className="h-8 text-xs"
                                     >
                                       Apply

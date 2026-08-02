@@ -6,7 +6,8 @@ import { useStudents } from "@/hooks/useStudents";
 import { useAuth } from "@/contexts/AuthContext";
 import FinesLineChart from "@/components/ui/fines-line-chart";
 import { Badge } from "@/components/ui/badge";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { subDays, startOfDay } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,26 @@ export default function DashboardPage() {
   const { fines, loading: finesLoading, error: finesError } = useFines();
   const { students, loading: studentsLoading, error: studentsError } = useStudents();
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
+  const [rangeDays, setRangeDays] = useState<7 | 30 | 90>(30);
+
+  const filteredFinesByRange = useMemo(() => {
+    const cutoff = startOfDay(subDays(new Date(), rangeDays - 1));
+    return fines.filter((fine) => new Date(fine.created_at) >= cutoff);
+  }, [fines, rangeDays]);
+
+  const rangeSummary = useMemo(() => {
+    return filteredFinesByRange.reduce(
+      (summary, fine) => {
+        const paid = fine.amount - fine.balance;
+        summary.total += fine.amount;
+        summary.paid += paid;
+        summary.pending += fine.balance;
+        summary.count += 1;
+        return summary;
+      },
+      { total: 0, paid: 0, pending: 0, count: 0 }
+    );
+  }, [filteredFinesByRange]);
 
   useEffect(() => {
     const fetchUnreadMessages = async () => {
@@ -235,13 +256,43 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
           {/* Fines Line Graph */}
           <Card className="card-elevated lg:col-span-2">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="font-display">Fines Analysis</CardTitle>
-              <Badge variant="outline" className="bg-primary/5">Last 30 Days</Badge>
+            <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle className="font-display">Fines Analysis</CardTitle>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Showing the last {rangeDays} days of fine trends.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {[7, 30, 90].map((days) => (
+                  <Button
+                    key={days}
+                    size="sm"
+                    variant={rangeDays === days ? "secondary" : "outline"}
+                    onClick={() => setRangeDays(days as 7 | 30 | 90)}
+                  >
+                    {days} Days
+                  </Button>
+                ))}
+              </div>
             </CardHeader>
             <CardContent>
+              <div className="grid gap-3 md:grid-cols-3 mb-4">
+                <div className="rounded-lg border border-border/50 bg-muted/5 p-4">
+                  <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Total Fine Amount</p>
+                  <p className="mt-2 text-xl font-semibold">₱{rangeSummary.total.toLocaleString()}</p>
+                </div>
+                <div className="rounded-lg border border-border/50 bg-muted/5 p-4">
+                  <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Paid Amount</p>
+                  <p className="mt-2 text-xl font-semibold text-emerald-600">₱{rangeSummary.paid.toLocaleString()}</p>
+                </div>
+                <div className="rounded-lg border border-border/50 bg-muted/5 p-4">
+                  <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Pending Amount</p>
+                  <p className="mt-2 text-xl font-semibold text-rose-600">₱{rangeSummary.pending.toLocaleString()}</p>
+                </div>
+              </div>
               <div className="h-80">
-                <FinesLineChart />
+                <FinesLineChart rangeDays={rangeDays} />
               </div>
             </CardContent>
           </Card>

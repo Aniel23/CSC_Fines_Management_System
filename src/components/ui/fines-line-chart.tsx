@@ -4,36 +4,43 @@ import { ChartContainer, ChartTooltipContent, ChartLegendContent } from "@/compo
 import { useFines } from "@/hooks/useFines";
 import { format, subDays, eachDayOfInterval, startOfDay, isSameDay } from "date-fns";
 
-function groupFinesByDate(fines: { created_at: string; amount: number; status: string; balance: number }[]) {
-  // Generate last 30 days
+function groupFinesByDate(
+  fines: { created_at: string; amount: number; status: string; balance: number }[],
+  days: number
+) {
   const endDate = startOfDay(new Date());
-  const startDate = subDays(endDate, 29);
-  const last30Days = eachDayOfInterval({ start: startDate, end: endDate });
+  const startDate = subDays(endDate, days - 1);
+  const interval = eachDayOfInterval({ start: startDate, end: endDate });
 
-  return last30Days.map((date) => {
+  return interval.map((date) => {
     const dayFines = fines.filter((f) => isSameDay(new Date(f.created_at), date));
-    
     const amount = dayFines.reduce((sum, f) => sum + f.amount, 0);
     const paidAmount = dayFines.reduce((sum, f) => sum + (f.amount - f.balance), 0);
+    const pendingAmount = dayFines.reduce((sum, f) => sum + f.balance, 0);
     const count = dayFines.length;
 
     return {
-      label: format(date, "MMM d"),
+      label: format(date, days <= 7 ? "EEE" : "MMM d"),
       fullDate: format(date, "yyyy-MM-dd"),
       amount,
       paidAmount,
+      pendingAmount,
       count,
     };
   });
 }
 
-export default function FinesLineChart() {
+interface FinesLineChartProps {
+  rangeDays?: number;
+}
+
+export default function FinesLineChart({ rangeDays = 30 }: FinesLineChartProps) {
   const { fines, loading } = useFines();
   
   const data = React.useMemo(() => {
     if (fines.length === 0) return [];
-    return groupFinesByDate(fines as any);
-  }, [fines]);
+    return groupFinesByDate(fines as any, rangeDays);
+  }, [fines, rangeDays]);
 
   const config = {
     amount: { label: "Total Fine", color: "#f59e0b" },
