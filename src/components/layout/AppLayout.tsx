@@ -116,7 +116,9 @@ export function AppLayout({ children }: AppLayoutProps) {
             />
             <div className="text-lg font-bold text-foreground">CSC Fines Management</div>
           </div>
-          <div style={{ width: 32 }} />
+          <div className="flex items-center gap-2">
+            <NotificationsMenu />
+          </div>
         </header>
 
         {/* Desktop top bar */}

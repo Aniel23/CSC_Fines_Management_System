@@ -333,7 +333,7 @@ export default function AdminPaymentRecordsPage() {
             {(selectedPaymentMethod || selectedMonth) && (
               <div className="mt-4 p-3 bg-info/10 rounded-lg border border-info/20">
                 <p className="text-sm text-info">
-                  Showing {filteredRecords.length} of {mockPaymentRecords.length}{" "}
+                  Showing {filteredRecords.length} of {paymentRecords.length}{" "}
                   payments • ₱{filteredTotal.toLocaleString()} collected
                 </p>
               </div>

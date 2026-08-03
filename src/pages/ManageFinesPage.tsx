@@ -129,6 +129,18 @@ export default function ManageFinesPage() {
 
   // Get selected student details
   const selectedStudentData = students.find((s) => s.id === selectedStudent);
+  const selectedStudentPhotoUrl = useMemo(() => {
+    const rawPhotoUrl = selectedStudentData?.photo_url?.trim();
+    if (!rawPhotoUrl) return undefined;
+
+    const resolvedPhotoUrl = /^(https?:|data:|blob:|\/)/i.test(rawPhotoUrl)
+      ? rawPhotoUrl
+      : supabase.storage.from("user-assets").getPublicUrl(rawPhotoUrl).data.publicUrl;
+
+    return `${resolvedPhotoUrl}${resolvedPhotoUrl.includes("?") ? "&" : "?"}t=${encodeURIComponent(
+      selectedStudentData.updated_at
+    )}`;
+  }, [selectedStudentData]);
 
   // Combine default and custom fine types
   const allFineTypes = useMemo(() => {
@@ -787,9 +799,9 @@ export default function ManageFinesPage() {
                   <div className="p-4 bg-muted/50 rounded-xl border border-border/50">
                     <div className="flex items-center gap-4">
                       <Avatar className="h-16 w-16 border-2 border-primary/20 shrink-0">
-                        {selectedStudentData.photo_url && (
+                        {selectedStudentPhotoUrl && (
                           <AvatarImage 
-                            src={selectedStudentData.photo_url} 
+                            src={selectedStudentPhotoUrl}
                             alt={selectedStudentData.name} 
                             className="object-cover"
                           />
