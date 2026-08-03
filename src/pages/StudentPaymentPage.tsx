@@ -68,6 +68,8 @@ export default function StudentPaymentPage() {
   const [isCscModalOpen, setIsCscModalOpen] = useState(false);
   const [voucherCode, setVoucherCode] = useState("");
   const [appliedVoucher, setAppliedVoucher] = useState<Voucher | null>(null);
+  const [showVoucherConfirmDialog, setShowVoucherConfirmDialog] = useState(false);
+  const [pendingVoucher, setPendingVoucher] = useState<Voucher | null>(null);
 
   // Calculate selected amount based on payment amounts (Moved up to be accessible for useEffect)
   const subtotalAmount = selectedFines.reduce((sum, id) => sum + (paymentAmounts[id] || 0), 0);
@@ -86,17 +88,6 @@ export default function StudentPaymentPage() {
       }
     }
   }, [settings.voucher_codes]);
-
-  // Auto-detect voucher validity when amount changes (Moved up to avoid conditional hook call)
-  useEffect(() => {
-    if (appliedVoucher) {
-      if (appliedVoucher.amount > subtotalAmount) {
-        toast.error(`Voucher (₱${appliedVoucher.amount}) removed: Exceeds payable amount (₱${subtotalAmount})`);
-        setAppliedVoucher(null);
-        setVoucherCode("");
-      }
-    }
-  }, [subtotalAmount, appliedVoucher]);
 
   if (finesLoading || studentsLoading) {
     return (
@@ -221,10 +212,10 @@ export default function StudentPaymentPage() {
         return;
       }
 
-      // Validation 3: Amount check
+      // Validation 3: Amount check - if voucher exceeds amount, show confirmation
       if (voucher.amount > subtotalAmount) {
-        toast.error(`Invalid: Voucher amount (₱${voucher.amount}) exceeds total payment (₱${subtotalAmount}).`);
-        setAppliedVoucher(null);
+        setPendingVoucher(voucher);
+        setShowVoucherConfirmDialog(true);
         return;
       }
 
@@ -235,6 +226,22 @@ export default function StudentPaymentPage() {
       toast.error("Invalid or inactive voucher code");
       setAppliedVoucher(null);
     }
+  };
+
+  const handleConfirmVoucher = () => {
+    if (pendingVoucher) {
+      setAppliedVoucher(pendingVoucher);
+      toast.success(`Voucher applied: ${pendingVoucher.description}`);
+      setVoucherCode("");
+      setPendingVoucher(null);
+      setShowVoucherConfirmDialog(false);
+    }
+  };
+
+  const handleCancelVoucher = () => {
+    setPendingVoucher(null);
+    setShowVoucherConfirmDialog(false);
+    setVoucherCode("");
   };
 
   const handleRemoveVoucher = () => {
@@ -371,9 +378,12 @@ export default function StudentPaymentPage() {
       return;
     }
 
-    if (paymentMethod === "CSC-Slip" && proofImages.length === 0) {
-      toast.error("Please upload at least one photo of your CSC Payment Slip or proof");
-      return;
+    // Skip payment method validation if voucher covers full amount
+    if (selectedAmount > 0) {
+      if (paymentMethod === "CSC-Slip" && proofImages.length === 0) {
+        toast.error("Please upload at least one photo of your CSC Payment Slip or proof");
+        return;
+      }
     }
 
     try {
@@ -381,8 +391,8 @@ export default function StudentPaymentPage() {
       
       let uploadedProofUrls: string[] = [];
 
-      // Handle file upload if CSC Slip
-      if (paymentMethod === "CSC-Slip" && proofImages.length > 0) {
+      // Handle file upload if CSC Slip (only if payment method is CSC-Slip and amount > 0)
+      if (selectedAmount > 0 && paymentMethod === "CSC-Slip" && proofImages.length > 0) {
         for (const image of proofImages) {
           const fileExt = image.name.split('.').pop();
           const fileName = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
@@ -408,6 +418,9 @@ export default function StudentPaymentPage() {
       // Generate reference number
       const referenceNumber = `PAY-${Date.now().toString().slice(-8)}`;
 
+      // Determine payment method for notes
+      const actualPaymentMethod = selectedAmount === 0 ? "Voucher" : paymentMethod;
+
       // Record payments in database (create transaction and set fine status to "Pending")
       const paymentPromises = selectedFines.map(async (fineId) => {
         const fine = toPayFines.find((f) => f.id === fineId);
@@ -430,7 +443,7 @@ export default function StudentPaymentPage() {
           fine_id: fineId,
           amount_paid: amountToPay,
           payment_date: new Date().toISOString(),
-          notes: `Method: ${paymentMethod}, Ref: ${referenceNumber}, Status: Pending Approval${uploadedProofUrls.length > 0 ? ' (With Proof)' : ''}${appliedVoucher ? ` | Voucher: ${appliedVoucher.code} (-₱${appliedVoucher.amount})` : ''}`,
+          notes: `Method: ${actualPaymentMethod}, Ref: ${referenceNumber}, Status: Pending Approval${uploadedProofUrls.length > 0 ? ' (With Proof)' : ''}${appliedVoucher ? ` | Voucher: ${appliedVoucher.code} (-₱${appliedVoucher.amount})` : ''}`,
           voucher_used: appliedVoucher ? appliedVoucher.code : null,
           original_amount: amountToPay
         });
@@ -710,11 +723,11 @@ export default function StudentPaymentPage() {
                         </p>
                       </div>
                       <Button
-                        onClick={() => setShowPaymentForm(true)}
+                        onClick={() => selectedAmount === 0 ? handlePayment() : setShowPaymentForm(true)}
                         className="w-full sm:w-auto bg-success hover:bg-success/90 h-14 px-10 text-lg font-black rounded-xl shadow-xl shadow-success/20 transition-transform active:scale-95 group"
                       >
                         <CreditCard className="mr-3 h-6 w-6 group-hover:rotate-12 transition-transform" />
-                        Pay Fines Now
+                        {selectedAmount === 0 ? "Complete Payment" : "Pay Fines Now"}
                       </Button>
                     </div>
                   </div>
@@ -812,109 +825,123 @@ export default function StudentPaymentPage() {
                               </div>
                             </div>
 
-                            <div>
-                              <label className="text-sm font-medium mb-3 block">
-                                Choose Payment Method
-                              </label>
-                              <div className="space-y-3 sm:space-y-4">
-                                <button
-                                  onClick={() => setPaymentMethod("Online")}
-                                  className={`w-full p-3 sm:p-4 rounded-xl border-2 transition-all text-left flex flex-col gap-1 ${
-                                    paymentMethod === "Online"
-                                      ? "border-primary bg-primary/5 shadow-sm"
-                                      : "border-border hover:border-primary/20"
-                                  }`}
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <CreditCard className="h-4 w-4 text-primary" />
-                                    <p className="font-bold text-foreground text-sm sm:text-base">E-Wallet & Cards</p>
+                            {selectedAmount > 0 ? (
+                              <>
+                                <div>
+                                  <label className="text-sm font-medium mb-3 block">
+                                    Choose Payment Method
+                                  </label>
+                                  <div className="space-y-3 sm:space-y-4">
+                                    <button
+                                      onClick={() => setPaymentMethod("Online")}
+                                      className={`w-full p-3 sm:p-4 rounded-xl border-2 transition-all text-left flex flex-col gap-1 ${
+                                        paymentMethod === "Online"
+                                          ? "border-primary bg-primary/5 shadow-sm"
+                                          : "border-border hover:border-primary/20"
+                                      }`}
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <CreditCard className="h-4 w-4 text-primary" />
+                                        <p className="font-bold text-foreground text-sm sm:text-base">E-Wallet & Cards</p>
+                                      </div>
+                                      <p className="text-xs text-muted-foreground leading-relaxed pl-6">
+                                        GCash, PayMaya, Credit/Debit Cards
+                                      </p>
+                                    </button>
+
+                                    <button
+                                      onClick={() => { setPaymentMethod("CSC-Slip"); setIsCscModalOpen(true); }}
+                                      className={`w-full p-3 sm:p-4 rounded-xl border-2 transition-all text-left flex flex-col gap-1 ${
+                                        paymentMethod === "CSC-Slip"
+                                          ? "border-primary bg-primary/5 shadow-sm"
+                                          : "border-border hover:border-primary/20"
+                                      }`}
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <Upload className="h-4 w-4 text-primary" />
+                                        <p className="font-bold text-foreground text-sm sm:text-base">Upload CSC Slip</p>
+                                      </div>
+                                      <p className="text-xs text-muted-foreground leading-relaxed pl-6">
+                                        Submit photo of payment slip issued by CSC
+                                      </p>
+                                    </button>
+
+                                    <button
+                                      onClick={() => setPaymentMethod("Over-the-Counter")}
+                                      className={`w-full p-3 sm:p-4 rounded-xl border-2 transition-all text-left flex flex-col gap-1 ${
+                                        paymentMethod === "Over-the-Counter"
+                                          ? "border-primary bg-primary/5 shadow-sm"
+                                          : "border-border hover:border-primary/20"
+                                      }`}
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <UserIcon className="h-4 w-4 text-primary" />
+                                        <p className="font-bold text-foreground text-sm sm:text-base">Over-the-Counter</p>
+                                      </div>
+                                      <p className="text-xs text-muted-foreground leading-relaxed pl-6">
+                                        Pay directly at CSC Office
+                                      </p>
+                                    </button>
                                   </div>
-                                  <p className="text-xs text-muted-foreground leading-relaxed pl-6">
-                                    GCash, PayMaya, Credit/Debit Cards
-                                  </p>
-                                </button>
-
-                                <button
-                                  onClick={() => { setPaymentMethod("CSC-Slip"); setIsCscModalOpen(true); }}
-                                  className={`w-full p-3 sm:p-4 rounded-xl border-2 transition-all text-left flex flex-col gap-1 ${
-                                    paymentMethod === "CSC-Slip"
-                                      ? "border-primary bg-primary/5 shadow-sm"
-                                      : "border-border hover:border-primary/20"
-                                  }`}
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <Upload className="h-4 w-4 text-primary" />
-                                    <p className="font-bold text-foreground text-sm sm:text-base">Upload CSC Slip</p>
-                                  </div>
-                                  <p className="text-xs text-muted-foreground leading-relaxed pl-6">
-                                    Submit photo of payment slip issued by CSC
-                                  </p>
-                                </button>
-
-                                <button
-                                  onClick={() => setPaymentMethod("Over-the-Counter")}
-                                  className={`w-full p-3 sm:p-4 rounded-xl border-2 transition-all text-left flex flex-col gap-1 ${
-                                    paymentMethod === "Over-the-Counter"
-                                      ? "border-primary bg-primary/5 shadow-sm"
-                                      : "border-border hover:border-primary/20"
-                                  }`}
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <UserIcon className="h-4 w-4 text-primary" />
-                                    <p className="font-bold text-foreground text-sm sm:text-base">Over-the-Counter</p>
-                                  </div>
-                                  <p className="text-xs text-muted-foreground leading-relaxed pl-6">
-                                    Pay directly at CSC Office
-                                  </p>
-                                </button>
-                              </div>
-                            </div>
-
-                            {/* CSC-Slip inline upload removed — modal opens when CSC is selected */}
-
-                            {paymentMethod === "Online" && (
-                              <div className="p-3 sm:p-4 bg-muted/50 rounded-lg border border-border/50">
-                                <div className="text-sm font-bold mb-2 flex items-center gap-2">
-                                  <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-                                  E-Wallet & Card Payment
                                 </div>
-                                <ul className="text-xs sm:text-sm text-muted-foreground space-y-1 sm:space-y-2">
-                                  <li className="flex items-start gap-2">
-                                    <span className="font-bold text-primary">•</span>
-                                    <span>GCash and PayMaya QR code payments</span>
-                                  </li>
-                                  <li className="flex items-start gap-2">
-                                    <span className="font-bold text-primary">•</span>
-                                    <span>Credit/Debit card processing</span>
-                                  </li>
-                                  <li className="flex items-start gap-2">
-                                    <span className="font-bold text-primary">•</span>
-                                    <span>Instant payment confirmation</span>
-                                  </li>
-                                </ul>
-                              </div>
-                            )}
 
-                            {paymentMethod === "Over-the-Counter" && (
-                              <div className="p-3 sm:p-4 bg-muted/50 rounded-lg border border-border/50">
-                                <div className="text-sm font-bold mb-2 flex items-center gap-2">
-                                  <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
-                                  Counter Payment Instructions
-                                </div>
-                                <ul className="text-xs sm:text-sm text-muted-foreground space-y-1 sm:space-y-2">
-                                  <li className="flex items-start gap-2">
-                                    <span className="font-bold text-primary">1.</span>
-                                    <span>Visit the CSC office during office hours</span>
-                                  </li>
-                                  <li className="flex items-start gap-2">
-                                    <span className="font-bold text-primary">2.</span>
-                                    <span>Bring your student ID</span>
-                                  </li>
-                                  <li className="flex items-start gap-2">
-                                    <span className="font-bold text-primary">3.</span>
-                                    <span>Pay the exact amount: ₱{selectedAmount.toLocaleString()}</span>
-                                  </li>
-                                </ul>
+                                {/* CSC-Slip inline upload removed — modal opens when CSC is selected */}
+
+                                {paymentMethod === "Online" && (
+                                  <div className="p-3 sm:p-4 bg-muted/50 rounded-lg border border-border/50">
+                                    <div className="text-sm font-bold mb-2 flex items-center gap-2">
+                                      <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                                      E-Wallet & Card Payment
+                                    </div>
+                                    <ul className="text-xs sm:text-sm text-muted-foreground space-y-1 sm:space-y-2">
+                                      <li className="flex items-start gap-2">
+                                        <span className="font-bold text-primary">•</span>
+                                        <span>GCash and PayMaya QR code payments</span>
+                                      </li>
+                                      <li className="flex items-start gap-2">
+                                        <span className="font-bold text-primary">•</span>
+                                        <span>Credit/Debit card processing</span>
+                                      </li>
+                                      <li className="flex items-start gap-2">
+                                        <span className="font-bold text-primary">•</span>
+                                        <span>Instant payment confirmation</span>
+                                      </li>
+                                    </ul>
+                                  </div>
+                                )}
+
+                                {paymentMethod === "Over-the-Counter" && (
+                                  <div className="p-3 sm:p-4 bg-muted/50 rounded-lg border border-border/50">
+                                    <div className="text-sm font-bold mb-2 flex items-center gap-2">
+                                      <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                                      Counter Payment Instructions
+                                    </div>
+                                    <ul className="text-xs sm:text-sm text-muted-foreground space-y-1 sm:space-y-2">
+                                      <li className="flex items-start gap-2">
+                                        <span className="font-bold text-primary">1.</span>
+                                        <span>Visit the CSC office during office hours</span>
+                                      </li>
+                                      <li className="flex items-start gap-2">
+                                        <span className="font-bold text-primary">2.</span>
+                                        <span>Bring your student ID</span>
+                                      </li>
+                                      <li className="flex items-start gap-2">
+                                        <span className="font-bold text-primary">3.</span>
+                                        <span>Pay the exact amount: ₱{selectedAmount.toLocaleString()}</span>
+                                      </li>
+                                    </ul>
+                                  </div>
+                                )}
+                              </>
+                            ) : (
+                              <div className="p-4 sm:p-6 bg-success/10 rounded-xl border-2 border-success/30 text-center">
+                                <CheckCircle className="h-8 w-8 text-success mx-auto mb-3" />
+                                <p className="text-sm font-bold text-success mb-1">
+                                  Fully Covered by Voucher
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  Your voucher covers the entire payment amount. No additional payment method needed.
+                                </p>
                               </div>
                             )}
                           </div>
@@ -923,7 +950,7 @@ export default function StudentPaymentPage() {
                       <div className="p-3 sm:p-4 sm:p-6 pt-0 border-t border-border">
                         <div className="flex flex-col gap-2 sm:gap-3">
                           <Button
-                            onClick={paymentMethod === "Online" ? () => setShowPaymentGateway(true) : handlePayment}
+                            onClick={selectedAmount === 0 ? handlePayment : paymentMethod === "Online" ? () => setShowPaymentGateway(true) : handlePayment}
                             disabled={isSubmitting}
                             className="w-full bg-success hover:bg-success/90 h-11 sm:h-12 text-sm sm:text-base font-bold"
                           >
@@ -932,6 +959,8 @@ export default function StudentPaymentPage() {
                                 <Loader className="mr-2 h-4 w-4 animate-spin" />
                                 Processing...
                               </>
+                            ) : selectedAmount === 0 ? (
+                              "Complete Payment with Voucher"
                             ) : paymentMethod === "Online" ? (
                               "Continue to Payment Gateway"
                             ) : paymentMethod === "CSC-Slip" ? (
@@ -1099,6 +1128,36 @@ export default function StudentPaymentPage() {
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setIsCscModalOpen(false)}>Close</Button>
                 <Button onClick={() => setIsCscModalOpen(false)}>Done</Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Voucher Confirmation Dialog */}
+        <Dialog open={showVoucherConfirmDialog} onOpenChange={setShowVoucherConfirmDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <AlertCircle className="h-5 w-5 text-warning" />
+                Voucher Amount Exceeds Payment
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="p-4 bg-warning/10 rounded-lg border border-warning/20">
+                <p className="text-sm text-foreground">
+                  Your voucher amount (<span className="font-bold">₱{pendingVoucher?.amount?.toFixed(2)}</span>) is greater than the total payment amount (<span className="font-bold">₱{subtotalAmount.toFixed(2)}</span>).
+                </p>
+                <p className="text-sm text-muted-foreground mt-2">
+                  This voucher can only be used once. Any excess amount will not be refunded or carried over.
+                </p>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={handleCancelVoucher}>
+                  Cancel
+                </Button>
+                <Button onClick={handleConfirmVoucher} className="bg-warning hover:bg-warning/90">
+                  Use Voucher Anyway
+                </Button>
               </div>
             </div>
           </DialogContent>
