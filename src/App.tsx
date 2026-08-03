@@ -33,6 +33,7 @@ const RegisterPage = lazy(() => import("./pages/RegisterPage"));
 const ContactAdminPage = lazy(() => import("./pages/ContactAdminPage"));
 const AdminMessagesPage = lazy(() => import("./pages/AdminMessagesPage"));
 const AdminVouchersPage = lazy(() => import("./pages/AdminVouchersPage"));
+const AdminBucketManagerPage = lazy(() => import("./pages/AdminBucketManagerPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient({
@@ -74,6 +75,7 @@ const AppRoutes = () => {
         <Route path="/admin-payment-records" element={<RequireAuth><AdminPaymentRecordsPage /></RequireAuth>} />
         <Route path="/admin-messages" element={<RequireAuth><AdminMessagesPage /></RequireAuth>} />
         <Route path="/admin-vouchers" element={<RequireAuth><AdminVouchersPage /></RequireAuth>} />
+        <Route path="/admin-bucket-manager" element={<RequireAuth><AdminBucketManagerPage /></RequireAuth>} />
         <Route path="/payment/success" element={<PaymentSuccess />} />
         <Route path="/payment/failed" element={<PaymentFailed />} />
         <Route path="/manage-fines" element={<RequireAuth><ManageFinesPage /></RequireAuth>} />

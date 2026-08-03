@@ -11,8 +11,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, CheckCircle, CreditCard, Loader, X, Clock, User as UserIcon, Upload, ImageIcon } from "lucide-react";
-import { useState } from "react";
+import { AlertCircle, CheckCircle, CreditCard, Loader, X, Clock, User as UserIcon, Upload, ImageIcon, Plus } from "lucide-react";
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
+import { useState, useEffect, useRef } from "react";
 import { useFines } from "@/hooks/useFines";
 import { useStudents } from "@/hooks/useStudents";
 import { useAuth } from "@/contexts/AuthContext";
@@ -24,12 +25,17 @@ import PaymentGateway from "@/components/payment/PaymentGateway";
 import type { PaymentResponse } from "@/lib/payment";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 import { Ticket } from "lucide-react";
 import { useTransactions } from "@/hooks/useTransactions";
 import { useAppSettings } from "@/hooks/useAppSettings";
-import { useEffect } from "react";
-
+ 
 interface Voucher {
   id: string;
   code: string;
@@ -58,6 +64,8 @@ export default function StudentPaymentPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [proofImages, setProofImages] = useState<File[]>([]);
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [isCscModalOpen, setIsCscModalOpen] = useState(false);
   const [voucherCode, setVoucherCode] = useState("");
   const [appliedVoucher, setAppliedVoucher] = useState<Voucher | null>(null);
 
@@ -284,14 +292,21 @@ export default function StudentPaymentPage() {
     if (e.target.files && e.target.files.length > 0) {
       const files = Array.from(e.target.files);
       setProofImages(prev => [...prev, ...files]);
-      
+
       files.forEach(file => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          setPreviewUrls(prev => [...prev, reader.result as string]);
-        };
-        reader.readAsDataURL(file);
+        // Use Data URL for images, object URL for non-image (e.g., video)
+        if (file.type.startsWith('image/')) {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            setPreviewUrls(prev => [...prev, reader.result as string]);
+          };
+          reader.readAsDataURL(file);
+        } else {
+          setPreviewUrls(prev => [...prev, URL.createObjectURL(file)]);
+        }
       });
+      // Reset the input so selecting the same file again works
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -820,7 +835,7 @@ export default function StudentPaymentPage() {
                                 </button>
 
                                 <button
-                                  onClick={() => setPaymentMethod("CSC-Slip")}
+                                  onClick={() => { setPaymentMethod("CSC-Slip"); setIsCscModalOpen(true); }}
                                   className={`w-full p-3 sm:p-4 rounded-xl border-2 transition-all text-left flex flex-col gap-1 ${
                                     paymentMethod === "CSC-Slip"
                                       ? "border-primary bg-primary/5 shadow-sm"
@@ -855,48 +870,7 @@ export default function StudentPaymentPage() {
                               </div>
                             </div>
 
-                            {paymentMethod === "CSC-Slip" && (
-                              <div className="p-4 bg-muted/50 rounded-lg border border-border/50 animate-in fade-in slide-in-from-top-2">
-                                <Label className="text-sm font-bold mb-2 flex items-center gap-2">
-                                  <ImageIcon className="h-4 w-4 text-primary" />
-                                  Upload Proof (Before & After)
-                                  <span className="text-destructive">*</span>
-                                </Label>
-                                
-                                <div className="mt-2">
-                                  <Input
-                                    type="file"
-                                    accept="image/*"
-                                    multiple
-                                    onChange={handleFileChange}
-                                    className="cursor-pointer"
-                                  />
-                                  <p className="text-xs text-muted-foreground mt-1">
-                                    Supported formats: JPG, PNG, JPEG. You can select multiple files.
-                                  </p>
-                                </div>
-
-                                {previewUrls.length > 0 && (
-                                  <div className="mt-4 grid grid-cols-2 gap-2">
-                                    {previewUrls.map((url, index) => (
-                                      <div key={index} className="relative rounded-lg overflow-hidden border border-border">
-                                        <img 
-                                          src={url} 
-                                          alt={`Proof ${index + 1}`} 
-                                          className="w-full h-32 object-cover bg-black/5"
-                                        />
-                                        <button
-                                          onClick={() => removeImage(index)}
-                                          className="absolute top-1 right-1 p-1 bg-destructive text-white rounded-full hover:bg-destructive/90 shadow-sm"
-                                        >
-                                          <X className="h-3 w-3" />
-                                        </button>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            )}
+                            {/* CSC-Slip inline upload removed — modal opens when CSC is selected */}
 
                             {paymentMethod === "Online" && (
                               <div className="p-3 sm:p-4 bg-muted/50 rounded-lg border border-border/50">
@@ -1078,6 +1052,58 @@ export default function StudentPaymentPage() {
             </CardContent>
           </Card>
         )}
+        {/* CSC Upload Modal (opens when CSC-Slip selected) */}
+        <Dialog open={isCscModalOpen} onOpenChange={setIsCscModalOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Upload CSC Slip</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 max-h-[70vh] overflow-y-auto">
+              <input
+                ref={fileInputRef}
+                className="hidden"
+                type="file"
+                accept="image/*,video/*"
+                multiple
+                onChange={handleFileChange}
+              />
+
+              {previewUrls.length === 0 ? (
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex items-center justify-center h-40 rounded-lg border-2 border-dashed border-border cursor-pointer hover:border-primary/50 bg-background"
+                  >
+                    <Plus className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  {previewUrls.map((url, index) => (
+                    <div key={index} className="relative rounded-lg overflow-hidden border border-border">
+                      <img src={url} alt={`Proof ${index + 1}`} className="w-full h-32 object-cover bg-black/5" />
+                      <button onClick={() => removeImage(index)} className="absolute top-1 right-1 p-1 bg-destructive text-white rounded-full hover:bg-destructive/90 shadow-sm">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex items-center justify-center rounded-lg border-2 border-dashed border-border p-2 cursor-pointer hover:border-primary/50"
+                  >
+                    <Plus className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setIsCscModalOpen(false)}>Close</Button>
+                <Button onClick={() => setIsCscModalOpen(false)}>Done</Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
       </div>
     </AppLayout>
   );

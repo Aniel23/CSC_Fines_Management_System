@@ -35,6 +35,7 @@ const adminNavItems = [
   { title: "Vouchers", url: "/admin-vouchers", icon: Ticket },
   { title: "Messages", url: "/admin-messages", icon: Mail },
   { title: "Manage About", url: "/manage-about", icon: Info },
+  { title: "Bucket Manager", url: "/admin-bucket-manager", icon: FileText },
 ];
 
 // Student Navigation

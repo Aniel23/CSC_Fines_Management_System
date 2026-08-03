@@ -664,23 +664,30 @@ export default function AdminFinesPage() {
                                     <DialogTitle>Proof of Payment - {fine.student?.name}</DialogTitle>
                                   </DialogHeader>
                                   <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[70vh] overflow-y-auto">
-                                    {fine.payment_proofs.map((proof: string, idx: number) => (
-                                      <div key={idx} className="flex flex-col items-center">
-                                        <img 
-                                          src={proof} 
-                                          alt={`Proof ${idx + 1}`} 
-                                          className="max-w-full max-h-[50vh] object-contain rounded-lg shadow-md"
-                                        />
-                                        <div className="mt-2">
-                                          <Button variant="outline" size="sm" asChild>
-                                            <a href={proof} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
-                                              <ExternalLink className="h-3 w-3" />
-                                              Open Original
-                                            </a>
-                                          </Button>
+                                    {fine.payment_proofs.map((proof: string, idx: number) => {
+                                      const isVideo = /\.(mp4|mov|webm|ogg|m4v)(\?|$)/i.test(proof);
+                                      return (
+                                        <div key={idx} className="flex flex-col items-center">
+                                          {isVideo ? (
+                                            <video src={proof} controls className="max-w-full max-h-[50vh] object-contain rounded-lg shadow-md" />
+                                          ) : (
+                                            <img 
+                                              src={proof} 
+                                              alt={`Proof ${idx + 1}`} 
+                                              className="max-w-full max-h-[50vh] object-contain rounded-lg shadow-md"
+                                            />
+                                          )}
+                                          <div className="mt-2">
+                                            <Button variant="outline" size="sm" asChild>
+                                              <a href={proof} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
+                                                <ExternalLink className="h-3 w-3" />
+                                                Open Original
+                                              </a>
+                                            </Button>
+                                          </div>
                                         </div>
-                                      </div>
-                                    ))}
+                                      );
+                                    })}
                                   </div>
                                 </DialogContent>
                               </Dialog>
@@ -697,11 +704,15 @@ export default function AdminFinesPage() {
                                     <DialogTitle>Proof of Payment - {fine.student?.name}</DialogTitle>
                                   </DialogHeader>
                                   <div className="mt-4 flex flex-col items-center">
-                                    <img 
-                                      src={fine.payment_proof} 
-                                      alt="Proof of payment" 
-                                      className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-md"
-                                    />
+                                    {(/\.(mp4|mov|webm|ogg|m4v)(\?|$)/i.test(fine.payment_proof || '') ) ? (
+                                      <video src={fine.payment_proof || ''} controls className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-md" />
+                                    ) : (
+                                      <img 
+                                        src={fine.payment_proof} 
+                                        alt="Proof of payment" 
+                                        className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-md"
+                                      />
+                                    )}
                                     <div className="mt-4 flex gap-3">
                                       <Button variant="outline" asChild>
                                         <a href={fine.payment_proof} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">

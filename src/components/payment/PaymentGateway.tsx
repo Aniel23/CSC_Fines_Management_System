@@ -3,7 +3,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Loader, QrCode, ExternalLink, Smartphone, Upload, CheckCircle2, Image as ImageIcon } from 'lucide-react';
+import { Loader, QrCode, ExternalLink, Smartphone, Upload, CheckCircle2, Image as ImageIcon, Plus } from 'lucide-react';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { PaymentService, PaymentMethod, PAYMENT_METHODS, PaymentResponse } from '@/lib/payment';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -21,27 +28,98 @@ export default function PaymentGateway({ amount, fineIds, onSuccess, onCancel }:
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentResponse, setPaymentResponse] = useState<PaymentResponse | null>(null);
   const [showQR, setShowQR] = useState(false);
-  const [proofFile, setProofFile] = useState<File | null>(null);
-  const [proofPreview, setProofPreview] = useState<string | null>(null);
+  const [proofFiles, setProofFiles] = useState<File[]>([]);
+  const [proofPreviews, setProofPreviews] = useState<Array<{ src: string; type: 'image' | 'video'; name: string }>>([]);
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [tempFiles, setTempFiles] = useState<File[]>([]);
+  const [tempPreviews, setTempPreviews] = useState<Array<{ src: string; type: 'image' | 'video'; name: string }>>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { settings } = useAppSettings();
 
   const paymentService = PaymentService.getInstance();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error('File size must be less than 5MB');
-        return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    const maxFiles = 6;
+    const selected = files.slice(0, maxFiles);
+
+    const previews: Array<{ src: string; type: 'image' | 'video'; name: string }> = [];
+    const validFiles: File[] = [];
+
+    for (const file of selected) {
+      const isImage = file.type.startsWith('image/');
+      const isVideo = file.type.startsWith('video/');
+
+      // Validate type
+      if (!isImage && !isVideo) {
+        toast.error(`Unsupported file type: ${file.name}`);
+        continue;
       }
-      setProofFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setProofPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+
+      // Validate size: images 5MB, videos 50MB
+      const maxSize = isImage ? 5 * 1024 * 1024 : 50 * 1024 * 1024;
+      if (file.size > maxSize) {
+        toast.error(`${file.name} is too large (${Math.round(file.size / 1024 / 1024)}MB)`);
+        continue;
+      }
+
+      validFiles.push(file);
+
+      if (isImage) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setProofPreviews((prev) => [...prev, { src: reader.result as string, type: 'image', name: file.name }]);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        // For video use object URL for quick preview
+        const url = URL.createObjectURL(file);
+        previews.push({ src: url, type: 'video', name: file.name });
+      }
     }
+
+    // Append any video previews that used object URLs
+    if (previews.length > 0) setProofPreviews((prev) => [...prev, ...previews]);
+
+    // Replace current proof files with the valid selection (append if there were already files)
+    setProofFiles((prev) => [...prev, ...validFiles].slice(0, maxFiles));
+  };
+
+  const removeProofAt = (index: number) => {
+    setProofFiles((prev) => {
+      const next = [...prev];
+      next.splice(index, 1);
+      return next;
+    });
+    setProofPreviews((prev) => {
+      const next = [...prev];
+      // Revoke object URL if it's a video
+      const item = next[index];
+      if (item && item.type === 'video') {
+        try { URL.revokeObjectURL(item.src); } catch (e) {}
+      }
+      next.splice(index, 1);
+      return next;
+    });
+  };
+
+  const removeTempAt = (index: number) => {
+    setTempFiles((prev) => {
+      const next = [...prev];
+      next.splice(index, 1);
+      return next;
+    });
+    setTempPreviews((prev) => {
+      const next = [...prev];
+      const item = next[index];
+      if (item && item.type === 'video') {
+        try { URL.revokeObjectURL(item.src); } catch (e) {}
+      }
+      next.splice(index, 1);
+      return next;
+    });
   };
 
   const handlePaymentMethodSelect = (method: PaymentMethod) => {
@@ -88,7 +166,7 @@ export default function PaymentGateway({ amount, fineIds, onSuccess, onCancel }:
 
   const handleConfirmPayment = async () => {
     if (!paymentResponse) return;
-    if (!proofFile) {
+    if (!proofFiles || proofFiles.length === 0) {
       toast.error('Please upload your proof of payment first');
       return;
     }
@@ -96,32 +174,37 @@ export default function PaymentGateway({ amount, fineIds, onSuccess, onCancel }:
     setIsProcessing(true);
     
     try {
-      // 1. Upload proof image to Supabase Storage
-      const fileExt = proofFile.name.split('.').pop();
-      const fileName = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
-      const filePath = `${fileName}`; // No folder prefix needed for bucket root
+      // 1. Upload all proof files to Supabase Storage and collect public URLs
+      const uploadedUrls: string[] = [];
 
-      // Upload to 'payment-proofs' bucket
-      const { error: uploadError } = await supabase.storage
-        .from('payment-proofs')
-        .upload(filePath, proofFile);
+      for (const file of proofFiles) {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
+        const filePath = `${fileName}`;
 
-      if (uploadError) throw uploadError;
+        const { error: uploadError } = await supabase.storage
+          .from('payment-proofs')
+          .upload(filePath, file, { contentType: file.type });
 
-      // 2. Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('payment-proofs')
-        .getPublicUrl(filePath);
+        if (uploadError) throw uploadError;
 
-      // 3. Update fines in database
-      // Note: We need to handle this update properly in the database schema
-      // Ideally fines table should have payment_proof column
+        const { data } = supabase.storage
+          .from('payment-proofs')
+          .getPublicUrl(filePath);
+
+        if (data?.publicUrl) uploadedUrls.push(data.publicUrl);
+      }
+
+      if (uploadedUrls.length === 0) throw new Error('No files were uploaded');
+
+      // 2. Update fines in database with array of proofs
       const { error: updateError } = await supabase
         .from('fines')
         .update({ 
           status: 'Pending',
-          payment_proof: publicUrl
-        } as any) // Cast as any to bypass strict type check if column missing in types
+          payment_proofs: uploadedUrls,
+          payment_proof: uploadedUrls[0] || null
+        } as any)
         .in('id', fineIds);
 
       if (updateError) throw updateError;
@@ -267,48 +350,121 @@ export default function PaymentGateway({ amount, fineIds, onSuccess, onCancel }:
                 <Upload className="h-4 w-4" />
                 Upload Proof of Payment
               </h4>
-              
-              {!proofPreview ? (
-                <div 
-                  className="flex flex-col items-center justify-center py-4 cursor-pointer hover:bg-primary/10 transition-colors rounded-lg"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <ImageIcon className="h-8 w-8 text-muted-foreground mb-2" />
-                  <p className="text-xs text-muted-foreground text-center px-4">
-                    Take a screenshot of your GCash/Maya receipt and upload it here
-                  </p>
-                  <Button variant="outline" size="sm" className="mt-3">
-                    Select Image
-                  </Button>
+
+              <div className="flex flex-col items-center justify-center py-4 rounded-lg">
+                <ImageIcon className="h-8 w-8 text-muted-foreground mb-2" />
+                <p className="text-xs text-muted-foreground text-center px-4 mb-2">
+                  Take a screenshot or record a short video of your CSC slip and upload here. You may select multiple files.
+                </p>
+                <div className="flex items-center gap-2">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button onClick={() => setIsUploadModalOpen(true)} className="bg-primary text-white flex items-center gap-2">
+                        <Plus className="h-4 w-4" />
+                        Choose Images / Videos
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">Add images or short videos of the CSC slip</TooltipContent>
+                  </Tooltip>
+                  {proofPreviews.length > 0 && (
+                    <span className="text-xs text-muted-foreground">{proofPreviews.length} file(s) selected</span>
+                  )}
                 </div>
-              ) : (
-                <div className="relative">
-                  <img 
-                    src={proofPreview} 
-                    alt="Proof preview" 
-                    className="w-full h-40 object-cover rounded-lg border" 
-                  />
-                  <Button 
-                    variant="secondary" 
-                    size="sm" 
-                    className="absolute bottom-2 right-2 opacity-90"
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    Change Image
-                  </Button>
-                  <div className="absolute top-2 right-2 bg-success text-white p-1 rounded-full shadow-lg">
-                    <CheckCircle2 className="h-4 w-4" />
-                  </div>
-                </div>
-              )}
-              
+              </div>
+
               <input 
                 type="file" 
                 ref={fileInputRef}
                 onChange={handleFileChange}
-                accept="image/*"
+                accept="image/*,video/*"
+                multiple
                 className="hidden"
               />
+            
+              <Dialog open={isUploadModalOpen} onOpenChange={(open) => {
+                if (!open) {
+                  // Cancel -> discard temp
+                  setTempFiles([]);
+                  setTempPreviews([]);
+                }
+                setIsUploadModalOpen(open);
+              }}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Select Proof Files</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="flex flex-col gap-2">
+                      <input
+                        type="file"
+                        accept="image/*,video/*"
+                        multiple
+                        onChange={(e) => {
+                          const files = Array.from(e.target.files || []);
+                          const maxFiles = 6;
+                          const selected = files.slice(0, maxFiles);
+                          const previews: Array<{ src: string; type: 'image' | 'video'; name: string }> = [];
+                          const validFiles: File[] = [];
+
+                          for (const file of selected) {
+                            const isImage = file.type.startsWith('image/');
+                            const isVideo = file.type.startsWith('video/');
+                            if (!isImage && !isVideo) continue;
+                            const maxSize = isImage ? 5 * 1024 * 1024 : 50 * 1024 * 1024;
+                            if (file.size > maxSize) continue;
+                            validFiles.push(file);
+                            if (isImage) {
+                              const reader = new FileReader();
+                              reader.onloadend = () => {
+                                setTempPreviews((prev) => [...prev, { src: reader.result as string, type: 'image', name: file.name }]);
+                              };
+                              reader.readAsDataURL(file);
+                            } else {
+                              const url = URL.createObjectURL(file);
+                              previews.push({ src: url, type: 'video', name: file.name });
+                            }
+                          }
+                          if (previews.length > 0) setTempPreviews((prev) => [...prev, ...previews]);
+                          setTempFiles((prev) => [...prev, ...validFiles].slice(0, 6));
+                        }}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      {(tempPreviews.length > 0 ? tempPreviews : proofPreviews).map((p, idx) => (
+                        <div key={idx} className="relative border rounded-lg overflow-hidden">
+                          {p.type === 'image' ? (
+                            <img src={p.src} alt={p.name} className="w-full h-36 object-cover" />
+                          ) : (
+                            <video src={p.src} className="w-full h-36 object-cover bg-black" controls />
+                          )}
+                          <div className="absolute top-2 right-2 flex gap-2">
+                            <Button size="icon" variant="ghost" onClick={() => removeTempAt(idx)} className="bg-white/80">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M6.707 6.707a1 1 0 00-1.414-1.414L2 8.586 6.707 13.293a1 1 0 001.414-1.414L4.414 8.586l2.293-2.293z" clipRule="evenodd"/></svg>
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="flex justify-end gap-2">
+                      <Button variant="outline" onClick={() => { setIsUploadModalOpen(false); setTempFiles([]); setTempPreviews([]); }}>
+                        Cancel
+                      </Button>
+                      <Button onClick={() => {
+                        // Commit temp into main
+                        if (tempFiles.length > 0) setProofFiles((prev) => [...prev, ...tempFiles].slice(0, 6));
+                        if (tempPreviews.length > 0) setProofPreviews((prev) => [...prev, ...tempPreviews].slice(0, 6));
+                        setTempFiles([]);
+                        setTempPreviews([]);
+                        setIsUploadModalOpen(false);
+                      }}>
+                        Done
+                      </Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </div>
 
             <div className="flex gap-3">
