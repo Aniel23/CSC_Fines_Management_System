@@ -30,6 +30,49 @@ import type { FineType, FineStatus } from "@/types";
 import { getUniqueStudentDepartments, getDepartments } from "@/integrations/supabase/queries";
 import { Plus, Loader, User, FileText, DollarSign, AlertCircle, Upload, X, Calendar, Search, Filter, Camera } from "lucide-react";
 
+function resolveStudentPhotoUrl(
+  rawPhotoUrl?: string | null,
+  updatedAt?: string
+) {
+  const trimmed = rawPhotoUrl?.trim();
+  if (!trimmed) return undefined;
+
+  if (/^(data:|blob:)/i.test(trimmed)) {
+    return trimmed;
+  }
+
+  let resolvedUrl = trimmed;
+
+  try {
+    const parsed = new URL(trimmed);
+    const storageMatch = decodeURIComponent(parsed.pathname).match(
+      /\/storage\/v1\/object\/(?:public|sign)\/([^/]+)\/(.+)$/
+    );
+
+    if (storageMatch) {
+      const [, bucket, path] = storageMatch;
+      resolvedUrl = supabase.storage
+        .from(bucket)
+        .getPublicUrl(path).data.publicUrl;
+    }
+  } catch {
+    const normalizedPath = trimmed
+      .replace(/^\/+/, "")
+      .replace(/^storage\/v1\/object\/(?:public|sign)\/[^/]+\//, "")
+      .replace(/^user-assets\//, "");
+
+    resolvedUrl = supabase.storage
+      .from("user-assets")
+      .getPublicUrl(normalizedPath).data.publicUrl;
+  }
+
+  if (!updatedAt) return resolvedUrl;
+
+  return `${resolvedUrl}${resolvedUrl.includes("?") ? "&" : "?"}t=${encodeURIComponent(
+    updatedAt
+  )}`;
+}
+
 export default function ManageFinesPage() {
   const { toast } = useToast();
   const { students, loading: studentsLoading, refetch: refetchStudents } = useStudents();
@@ -130,16 +173,10 @@ export default function ManageFinesPage() {
   // Get selected student details
   const selectedStudentData = students.find((s) => s.id === selectedStudent);
   const selectedStudentPhotoUrl = useMemo(() => {
-    const rawPhotoUrl = selectedStudentData?.photo_url?.trim();
-    if (!rawPhotoUrl) return undefined;
-
-    const resolvedPhotoUrl = /^(https?:|data:|blob:|\/)/i.test(rawPhotoUrl)
-      ? rawPhotoUrl
-      : supabase.storage.from("user-assets").getPublicUrl(rawPhotoUrl).data.publicUrl;
-
-    return `${resolvedPhotoUrl}${resolvedPhotoUrl.includes("?") ? "&" : "?"}t=${encodeURIComponent(
-      selectedStudentData.updated_at
-    )}`;
+    return resolveStudentPhotoUrl(
+      selectedStudentData?.photo_url,
+      selectedStudentData?.updated_at
+    );
   }, [selectedStudentData]);
 
   // Combine default and custom fine types

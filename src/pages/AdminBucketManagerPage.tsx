@@ -799,14 +799,18 @@ export default function AdminBucketManagerPage() {
                 value={viewMode}
                 onValueChange={(value) => setViewMode(value as ViewMode)}
               >
-                <TabsList>
+                <TabsList className="grid w-full grid-cols-2 sm:w-auto">
                   <TabsTrigger value="active">Active Files</TabsTrigger>
                   <TabsTrigger value="bin">Recently Deleted Bin</TabsTrigger>
                 </TabsList>
               </Tabs>
 
-              <div className="flex flex-wrap items-center gap-2">
-                <Button onClick={fetchFilesAndRefs} disabled={loading}>
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+                <Button
+                  onClick={fetchFilesAndRefs}
+                  disabled={loading}
+                  className="w-full sm:w-auto"
+                >
                   <RefreshCw className="h-4 w-4 mr-2" />
                   Refresh
                 </Button>
@@ -815,6 +819,7 @@ export default function AdminBucketManagerPage() {
                     variant="secondary"
                     disabled={loading || selectedVisibleItems.length === 0}
                     onClick={() => openActionDialog("bin", selectedVisibleItems)}
+                    className="w-full sm:w-auto"
                   >
                     <Trash2 className="h-4 w-4 mr-2" />
                     Move Selected To Bin
@@ -827,6 +832,7 @@ export default function AdminBucketManagerPage() {
                       onClick={() =>
                         openActionDialog("restore", selectedVisibleItems)
                       }
+                      className="w-full sm:w-auto"
                     >
                       <RotateCcw className="h-4 w-4 mr-2" />
                       Restore Selected
@@ -837,6 +843,7 @@ export default function AdminBucketManagerPage() {
                       onClick={() =>
                         openActionDialog("delete", selectedVisibleItems)
                       }
+                      className="w-full sm:w-auto"
                     >
                       <Trash2 className="h-4 w-4 mr-2" />
                       Delete Permanently
@@ -862,7 +869,164 @@ export default function AdminBucketManagerPage() {
               {BUCKETS.find((bucket) => bucket.value === selectedBucket)?.label}
             </div>
 
-            <div className="overflow-x-auto border rounded-xl">
+            <div className="md:hidden space-y-3">
+              {visibleFiles.length > 0 ? (
+                <>
+                  <div className="flex items-center justify-between rounded-xl border bg-card p-3">
+                    <div>
+                      <p className="text-sm font-medium">Select visible files</p>
+                      <p className="text-xs text-muted-foreground">
+                        {selectedVisibleItems.length} selected
+                      </p>
+                    </div>
+                    <Checkbox
+                      checked={allVisibleSelected}
+                      onCheckedChange={(checked) =>
+                        toggleSelectAll(Boolean(checked))
+                      }
+                      aria-label="Select all visible files"
+                    />
+                  </div>
+
+                  {visibleFiles.map((file) => (
+                    <Card key={file.key} className="border">
+                      <CardContent className="space-y-4 pt-4">
+                        <div className="flex items-start gap-3">
+                          <Checkbox
+                            checked={!!selected[file.key]}
+                            onCheckedChange={() => toggleSelect(file.key)}
+                            aria-label={`Select ${file.name}`}
+                            className="mt-1"
+                          />
+
+                          <div className="flex min-w-0 flex-1 gap-3">
+                            {file.isImage ? (
+                              <a
+                                href={file.previewUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="shrink-0"
+                              >
+                                <img
+                                  src={file.previewUrl}
+                                  alt={file.name}
+                                  className="h-14 w-14 rounded-md border object-cover"
+                                />
+                              </a>
+                            ) : (
+                              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-md border bg-muted">
+                                <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                              </div>
+                            )}
+
+                            <div className="min-w-0 flex-1 space-y-1">
+                              <p className="break-all font-medium">{file.name}</p>
+                              <p className="break-all text-xs text-muted-foreground">
+                                Path: {file.path}
+                              </p>
+                              {file.originalPath && (
+                                <p className="break-all text-xs text-muted-foreground">
+                                  Original: {file.originalPath}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          <Badge variant="outline">
+                            {file.parentFolder === "/" ? "Root" : file.parentFolder}
+                          </Badge>
+                          <Badge
+                            className={
+                              file.referenced ? "bg-info text-white" : "bg-muted"
+                            }
+                          >
+                            {file.referenced ? "Referenced" : "Unused"}
+                          </Badge>
+                          {file.isDeleted && (
+                            <Badge className="bg-warning text-white">In Bin</Badge>
+                          )}
+                        </div>
+
+                        {file.referenceSources.length > 0 && (
+                          <div className="space-y-1 text-xs text-muted-foreground">
+                            {file.referenceSources.slice(0, 2).map((source) => (
+                              <div key={source}>{source}</div>
+                            ))}
+                            {file.referenceSources.length > 2 && (
+                              <div>
+                                +{file.referenceSources.length - 2} more references
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-1 gap-3 rounded-lg border bg-muted/20 p-3 text-sm sm:grid-cols-2">
+                          <div>
+                            <p className="text-xs text-muted-foreground">Size</p>
+                            <p className="font-medium">{formatBytes(file.size)}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">
+                              {viewMode === "bin" ? "Deleted" : "Updated"}
+                            </p>
+                            <p className="font-medium break-words">
+                              {formatDate(
+                                viewMode === "bin" ? file.deletedAt : file.updated_at
+                              )}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col gap-2">
+                          <Button variant="outline" className="w-full" asChild>
+                            <a href={file.previewUrl} target="_blank" rel="noreferrer">
+                              View
+                            </a>
+                          </Button>
+                          {viewMode === "active" ? (
+                            <Button
+                              variant="secondary"
+                              className="w-full"
+                              disabled={file.referenced || loading}
+                              onClick={() => openActionDialog("bin", [file])}
+                            >
+                              Bin
+                            </Button>
+                          ) : (
+                            <>
+                              <Button
+                                variant="secondary"
+                                className="w-full"
+                                disabled={loading}
+                                onClick={() => openActionDialog("restore", [file])}
+                              >
+                                Restore
+                              </Button>
+                              <Button
+                                variant="destructive"
+                                className="w-full"
+                                disabled={file.referenced || loading}
+                                onClick={() => openActionDialog("delete", [file])}
+                              >
+                                Delete
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </>
+              ) : (
+                <div className="rounded-xl border py-10 text-center text-muted-foreground">
+                  No files match the current bucket view and filters.
+                </div>
+              )}
+            </div>
+
+            <div className="hidden overflow-x-auto rounded-xl border md:block">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -1024,7 +1188,7 @@ export default function AdminBucketManagerPage() {
             }
           }}
         >
-          <DialogContent>
+          <DialogContent className="sm:max-w-2xl">
             <DialogHeader>
               <DialogTitle>
                 {pendingAction?.type === "bin"

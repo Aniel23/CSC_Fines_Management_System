@@ -603,8 +603,17 @@ export default function DepartmentManagement() {
             </Card>
           )}
 
-          <Dialog open={studentModalOpen} onOpenChange={setStudentModalOpen}>
-            <DialogContent className="max-w-6xl w-full">
+          <Dialog
+            open={studentModalOpen}
+            onOpenChange={(open) => {
+              if (!open) {
+                closeStudentModal();
+                return;
+              }
+              setStudentModalOpen(true);
+            }}
+          >
+            <DialogContent className="sm:max-w-5xl">
               <DialogHeader className="pr-10">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
@@ -615,7 +624,7 @@ export default function DepartmentManagement() {
                       {selectedDepartmentInfo?.description || `Showing students in ${selectedDepartment || 'selected'} department.`}
                     </p>
                   </div>
-                  <Button onClick={() => openStudentDialog()}>
+                  <Button onClick={() => openStudentDialog()} className="w-full sm:w-auto">
                     <Plus className="mr-2 h-4 w-4" />
                     Add Student
                   </Button>
@@ -661,119 +670,228 @@ export default function DepartmentManagement() {
                     </CardContent>
                   </Card>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Student ID</TableHead>
-                          <TableHead>Name</TableHead>
-                          <TableHead>Age</TableHead>
-                          <TableHead>Gender</TableHead>
-                          <TableHead>Department</TableHead>
-                          <TableHead>Address</TableHead>
-                          <TableHead>Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {filteredStudents.map((student) => (
-                          <TableRow key={student.id}>
-                            <TableCell>{student.student_id}</TableCell>
-                            <TableCell>{student.name}</TableCell>
-                            <TableCell>{student.age}</TableCell>
-                            <TableCell>{student.gender}</TableCell>
-                            <TableCell>{student.department}</TableCell>
-                            <TableCell className="max-w-xs truncate">{student.address || '-'}</TableCell>
-                            <TableCell>
-                              <div className="flex flex-wrap gap-2">
-                                {(studentViewFilter === 'active' || studentViewFilter === 'archived') && (
+                  <div className="space-y-4">
+                    <div className="space-y-3 md:hidden">
+                      {filteredStudents.map((student) => (
+                        <Card key={student.id} className="border">
+                          <CardContent className="space-y-4 pt-4">
+                            <div className="space-y-1">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="font-medium break-words">{student.name}</p>
+                                  <p className="text-xs text-muted-foreground break-all">
+                                    {student.student_id}
+                                  </p>
+                                </div>
+                                <Badge variant="secondary">{student.gender}</Badge>
+                              </div>
+                              <p className="text-sm text-muted-foreground">
+                                Department: {student.department || '-'}
+                              </p>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3 rounded-lg border bg-muted/20 p-3 text-sm">
+                              <div>
+                                <p className="text-xs text-muted-foreground">Age</p>
+                                <p className="font-medium">{student.age}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs text-muted-foreground">Address</p>
+                                <p className="font-medium break-words">{student.address || '-'}</p>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-col gap-2">
+                              {(studentViewFilter === 'active' || studentViewFilter === 'archived') && (
+                                <Button
+                                  variant="outline"
+                                  className="w-full"
+                                  onClick={() => openStudentDialog(student)}
+                                >
+                                  <Edit className="mr-2 h-4 w-4" />
+                                  Edit Student
+                                </Button>
+                              )}
+                              {studentViewFilter === 'active' && (
+                                <>
                                   <Button
                                     variant="outline"
-                                    size="sm"
-                                    onClick={() => openStudentDialog(student)}
-                                    className="h-8 w-8 p-0"
-                                    title="Edit Student"
+                                    className="w-full"
+                                    onClick={() => handleStudentArchive(student)}
                                   >
-                                    <Edit className="h-3 w-3" />
+                                    <Archive className="mr-2 h-4 w-4" />
+                                    Archive Student
                                   </Button>
-                                )}
-                                {studentViewFilter === 'active' && (
-                                  <>
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => handleStudentArchive(student)}
-                                      className="h-8 w-8 p-0"
-                                      title="Archive Student"
-                                    >
-                                      <Archive className="h-3 w-3" />
-                                    </Button>
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => handleStudentBin(student)}
-                                      className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                                      title="Move to Bin"
-                                    >
-                                      <Trash2 className="h-3 w-3" />
-                                    </Button>
-                                  </>
-                                )}
-                                {studentViewFilter === 'archived' && (
-                                  <>
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => handleStudentUnarchive(student)}
-                                      className="h-8 w-8 p-0"
-                                      title="Unarchive Student"
-                                    >
-                                      <RefreshCw className="h-3 w-3" />
-                                    </Button>
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => handleStudentBin(student)}
-                                      className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                                      title="Move to Bin"
-                                    >
-                                      <Trash2 className="h-3 w-3" />
-                                    </Button>
-                                  </>
-                                )}
-                                {studentViewFilter === 'binned' && (
-                                  <>
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => handleStudentRestore(student)}
-                                      className="h-8 w-8 p-0"
-                                      title="Restore Student"
-                                    >
-                                      <RefreshCw className="h-3 w-3" />
-                                    </Button>
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => setStudentToDelete(student)}
-                                      className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                                      title="Delete Permanently"
-                                    >
-                                      <Trash2 className="h-3 w-3" />
-                                    </Button>
-                                  </>
-                                )}
-                              </div>
-                            </TableCell>
+                                  <Button
+                                    variant="outline"
+                                    className="w-full text-destructive hover:text-destructive"
+                                    onClick={() => handleStudentBin(student)}
+                                  >
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Move to Bin
+                                  </Button>
+                                </>
+                              )}
+                              {studentViewFilter === 'archived' && (
+                                <>
+                                  <Button
+                                    variant="outline"
+                                    className="w-full"
+                                    onClick={() => handleStudentUnarchive(student)}
+                                  >
+                                    <RefreshCw className="mr-2 h-4 w-4" />
+                                    Unarchive Student
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    className="w-full text-destructive hover:text-destructive"
+                                    onClick={() => handleStudentBin(student)}
+                                  >
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Move to Bin
+                                  </Button>
+                                </>
+                              )}
+                              {studentViewFilter === 'binned' && (
+                                <>
+                                  <Button
+                                    variant="outline"
+                                    className="w-full"
+                                    onClick={() => handleStudentRestore(student)}
+                                  >
+                                    <RefreshCw className="mr-2 h-4 w-4" />
+                                    Restore Student
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    className="w-full text-destructive hover:text-destructive"
+                                    onClick={() => setStudentToDelete(student)}
+                                  >
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Delete Permanently
+                                  </Button>
+                                </>
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+
+                    <div className="hidden overflow-x-auto md:block">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Student ID</TableHead>
+                            <TableHead>Name</TableHead>
+                            <TableHead>Age</TableHead>
+                            <TableHead>Gender</TableHead>
+                            <TableHead>Department</TableHead>
+                            <TableHead>Address</TableHead>
+                            <TableHead>Actions</TableHead>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                        </TableHeader>
+                        <TableBody>
+                          {filteredStudents.map((student) => (
+                            <TableRow key={student.id}>
+                              <TableCell>{student.student_id}</TableCell>
+                              <TableCell>{student.name}</TableCell>
+                              <TableCell>{student.age}</TableCell>
+                              <TableCell>{student.gender}</TableCell>
+                              <TableCell>{student.department}</TableCell>
+                              <TableCell className="max-w-xs truncate">{student.address || '-'}</TableCell>
+                              <TableCell>
+                                <div className="flex flex-wrap gap-2">
+                                  {(studentViewFilter === 'active' || studentViewFilter === 'archived') && (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => openStudentDialog(student)}
+                                      className="h-8 w-8 p-0"
+                                      title="Edit Student"
+                                    >
+                                      <Edit className="h-3 w-3" />
+                                    </Button>
+                                  )}
+                                  {studentViewFilter === 'active' && (
+                                    <>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleStudentArchive(student)}
+                                        className="h-8 w-8 p-0"
+                                        title="Archive Student"
+                                      >
+                                        <Archive className="h-3 w-3" />
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleStudentBin(student)}
+                                        className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                                        title="Move to Bin"
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </Button>
+                                    </>
+                                  )}
+                                  {studentViewFilter === 'archived' && (
+                                    <>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleStudentUnarchive(student)}
+                                        className="h-8 w-8 p-0"
+                                        title="Unarchive Student"
+                                      >
+                                        <RefreshCw className="h-3 w-3" />
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleStudentBin(student)}
+                                        className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                                        title="Move to Bin"
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </Button>
+                                    </>
+                                  )}
+                                  {studentViewFilter === 'binned' && (
+                                    <>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleStudentRestore(student)}
+                                        className="h-8 w-8 p-0"
+                                        title="Restore Student"
+                                      >
+                                        <RefreshCw className="h-3 w-3" />
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setStudentToDelete(student)}
+                                        className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                                        title="Delete Permanently"
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </Button>
+                                    </>
+                                  )}
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
                   </div>
                 )}
               </div>
 
-              <DialogFooter>
-                <Button variant="outline" onClick={closeStudentModal}>
+              <DialogFooter className="gap-2">
+                <Button variant="outline" onClick={closeStudentModal} className="w-full sm:w-auto">
                   Close
                 </Button>
               </DialogFooter>
@@ -854,11 +972,11 @@ export default function DepartmentManagement() {
                     />
                   </div>
                 </div>
-                <DialogFooter>
-                  <Button type="button" variant="outline" onClick={() => setStudentDialogOpen(false)}>
+                <DialogFooter className="gap-2">
+                  <Button type="button" variant="outline" onClick={() => setStudentDialogOpen(false)} className="w-full sm:w-auto">
                     Cancel
                   </Button>
-                  <Button type="submit">
+                  <Button type="submit" className="w-full sm:w-auto">
                     {editingStudent ? 'Save Changes' : 'Add Student'}
                   </Button>
                 </DialogFooter>
