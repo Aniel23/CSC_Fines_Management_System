@@ -21,8 +21,6 @@ import { toast } from "sonner";
 import { createTransaction, updateFine } from "@/integrations/supabase/queries";
 import { supabase } from "@/integrations/supabase/client";
 import type { FineStatus } from "@/types";
-import PaymentGateway from "@/components/payment/PaymentGateway";
-import type { PaymentResponse } from "@/lib/payment";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -60,7 +58,6 @@ export default function StudentPaymentPage() {
   const [paymentAmounts, setPaymentAmounts] = useState<Record<string, number>>({});
   const [paymentMethod, setPaymentMethod] = useState<"Online" | "Over-the-Counter" | "CSC-Slip">("Online");
   const [showPaymentForm, setShowPaymentForm] = useState(false);
-  const [showPaymentGateway, setShowPaymentGateway] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [proofImages, setProofImages] = useState<File[]>([]);
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);

@@ -28,8 +28,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { FINE_TYPES as fineTypes, FINE_AMOUNTS as fineAmounts, DEFAULT_DEPARTMENTS } from "@/lib/constants";
 import type { FineType, FineStatus } from "@/types";
 import { getUniqueStudentDepartments, getDepartments } from "@/integrations/supabase/queries";
-import { Plus, Loader, User, FileText, AlertCircle, Upload, X, Calendar, Search, Filter, Camera } from "lucide-react";
-import { PesoSign } from "@/components/ui/peso-sign";
+import { Plus, Loader, User, FileText, AlertCircle, Upload, X, Calendar, Search, Filter, Camera, PhilippinePeso } from "lucide-react";
 
 function resolveStudentPhotoUrl(
   rawPhotoUrl?: string | null,
@@ -659,7 +658,7 @@ export default function ManageFinesPage() {
                 {/* Amount Selection */}
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2">
-                    <PesoSign className="h-4 w-4" />
+                    <PhilippinePeso className="h-4 w-4" />
                     Amount
                   </Label>
                   <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6">

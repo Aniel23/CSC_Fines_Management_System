@@ -1,7 +1,6 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Users, FileText, AlertCircle, Loader, Clock, ArrowRight, Bell, Mail } from "lucide-react";
-import { PesoSign } from "@/components/ui/peso-sign";
+import { Users, FileText, AlertCircle, Loader, Clock, ArrowRight, Bell, Mail, PhilippinePeso } from "lucide-react";
 import { useFines } from "@/hooks/useFines";
 import { useStudents } from "@/hooks/useStudents";
 import { useAuth } from "@/contexts/AuthContext";
@@ -191,7 +190,7 @@ export default function DashboardPage() {
     {
       title: "Total Collected",
       value: `₱${totalSettledAmount.toLocaleString()}`,
-      icon: PesoSign,
+      icon: PhilippinePeso,
       color: "text-green-500",
       bgColor: "bg-green-500/10",
       link: "/admin-transactions"
@@ -379,7 +378,7 @@ export default function DashboardPage() {
                 className="p-4 rounded-xl border border-border hover:bg-muted/50 transition-all hover:shadow-md flex flex-col items-center sm:items-start text-center sm:text-left"
               >
                 <div className="p-3 rounded-lg bg-success/10 mb-3">
-                  <PesoSign className="h-6 w-6 text-success" />
+                  <PhilippinePeso className="h-6 w-6 text-success" />
                 </div>
                 <h3 className="font-bold text-lg">View Reports</h3>
                 <p className="text-sm text-muted-foreground mt-1">
