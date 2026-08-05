@@ -17,11 +17,11 @@ import {
   AlertCircle,
   CheckCircle,
   FileText,
-  DollarSign,
   User as UserIcon,
   Clock,
   ArrowRight,
 } from "lucide-react";
+import { PesoSign } from "@/components/ui/peso-sign";
 import { useAuth } from "@/contexts/AuthContext";
 import { useFines } from "@/hooks/useFines";
 import { useStudentProfile } from "@/hooks/useStudentProfile";
@@ -191,7 +191,7 @@ export default function StudentDashboardPage() {
                 Overall Balance
               </CardTitle>
               <div className="p-2 rounded-lg bg-accent/10">
-                <DollarSign className="h-5 w-5 text-accent" />
+                <PesoSign className="h-5 w-5 text-accent" />
               </div>
             </CardHeader>
             <CardContent>
