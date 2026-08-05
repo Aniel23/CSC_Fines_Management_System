@@ -33,6 +33,8 @@ import {
 import { Ticket } from "lucide-react";
 import { useTransactions } from "@/hooks/useTransactions";
 import { useAppSettings } from "@/hooks/useAppSettings";
+import PaymentGateway from "@/components/payment/PaymentGateway";
+import type { PaymentResponse } from "@/lib/payment";
  
 interface Voucher {
   id: string;
@@ -67,6 +69,7 @@ export default function StudentPaymentPage() {
   const [appliedVoucher, setAppliedVoucher] = useState<Voucher | null>(null);
   const [showVoucherConfirmDialog, setShowVoucherConfirmDialog] = useState(false);
   const [pendingVoucher, setPendingVoucher] = useState<Voucher | null>(null);
+  const [showPaymentGateway, setShowPaymentGateway] = useState(false);
 
   // Calculate selected amount based on payment amounts (Moved up to be accessible for useEffect)
   const subtotalAmount = selectedFines.reduce((sum, id) => sum + (paymentAmounts[id] || 0), 0);
