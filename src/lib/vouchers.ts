@@ -1,7 +1,7 @@
 
 export interface Voucher {
   code: string;
-  amount: number;
+  discountPercent: number;
   description: string;
   isActive: boolean;
 }
@@ -9,19 +9,19 @@ export interface Voucher {
 export const VALID_VOUCHERS: Voucher[] = [
   {
     code: "COMMUNITY50",
-    amount: 50.00,
+    discountPercent: 50.00,
     description: "Community Service Reward",
     isActive: true,
   },
   {
     code: "EARLYBIRD20",
-    amount: 20.00,
+    discountPercent: 20.00,
     description: "Early Payment Discount",
     isActive: true,
   },
   {
     code: "SCHOLAR100",
-    amount: 100.00,
+    discountPercent: 100.00,
     description: "Scholarship Allowance",
     isActive: true,
   },

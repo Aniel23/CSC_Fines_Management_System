@@ -73,7 +73,7 @@ export default function StudentPaymentPage() {
 
   // Calculate selected amount based on payment amounts (Moved up to be accessible for useEffect)
   const subtotalAmount = selectedFines.reduce((sum, id) => sum + (paymentAmounts[id] || 0), 0);
-  const voucherDiscount = appliedVoucher ? Math.min(appliedVoucher.amount, subtotalAmount) : 0;
+  const voucherDiscount = appliedVoucher ? Math.round(subtotalAmount * (appliedVoucher.amount / 100)) : 0;
   const selectedAmount = Math.max(0, subtotalAmount - voucherDiscount);
 
   useEffect(() => {
@@ -343,7 +343,7 @@ export default function StudentPaymentPage() {
           fine_id: fineId,
           amount_paid: amountToPay,
           payment_date: new Date().toISOString(),
-          notes: `Gateway: ${paymentResponse.id}, Ref: ${paymentResponse.referenceNumber}, Status: Pending Approval${appliedVoucher ? ` | Voucher: ${appliedVoucher.code} (-₱${appliedVoucher.amount})` : ''}`
+          notes: `Gateway: ${paymentResponse.id}, Ref: ${paymentResponse.referenceNumber}, Status: Pending Approval${appliedVoucher ? ` | Voucher: ${appliedVoucher.code} (-${appliedVoucher.amount}%)` : ''}`
         });
       });
 
@@ -443,7 +443,7 @@ export default function StudentPaymentPage() {
           fine_id: fineId,
           amount_paid: amountToPay,
           payment_date: new Date().toISOString(),
-          notes: `Method: ${actualPaymentMethod}, Ref: ${referenceNumber}, Status: Pending Approval${uploadedProofUrls.length > 0 ? ' (With Proof)' : ''}${appliedVoucher ? ` | Voucher: ${appliedVoucher.code} (-₱${appliedVoucher.amount})` : ''}`,
+          notes: `Method: ${actualPaymentMethod}, Ref: ${referenceNumber}, Status: Pending Approval${uploadedProofUrls.length > 0 ? ' (With Proof)' : ''}${appliedVoucher ? ` | Voucher: ${appliedVoucher.code} (-${appliedVoucher.amount}%)` : ''}`,
           voucher_used: appliedVoucher ? appliedVoucher.code : null,
           original_amount: amountToPay
         });
@@ -786,7 +786,7 @@ export default function StudentPaymentPage() {
                                     <div className="flex items-center gap-2">
                                       <Ticket className="h-4 w-4 text-success" />
                                       <div>
-                                        <p className="text-xs font-bold text-success">{appliedVoucher.code}</p>
+                                        <p className="text-xs font-bold text-success">{appliedVoucher.code} ({appliedVoucher.amount}% off)</p>
                                         <p className="text-[10px] text-muted-foreground">{appliedVoucher.description}</p>
                                       </div>
                                     </div>
@@ -819,7 +819,7 @@ export default function StudentPaymentPage() {
                                 )}
                                 {appliedVoucher && (
                                   <p className="text-xs text-success mt-2 font-medium text-right">
-                                    - ₱{voucherDiscount.toLocaleString()} Discount Applied
+                                    -{appliedVoucher.amount}% ({voucherDiscount.toLocaleString()} off) Applied
                                   </p>
                                 )}
                               </div>
@@ -1145,7 +1145,7 @@ export default function StudentPaymentPage() {
             <div className="space-y-4">
               <div className="p-4 bg-warning/10 rounded-lg border border-warning/20">
                 <p className="text-sm text-foreground">
-                  Your voucher amount (<span className="font-bold">₱{pendingVoucher?.amount?.toFixed(2)}</span>) is greater than the total payment amount (<span className="font-bold">₱{subtotalAmount.toFixed(2)}</span>).
+                  Your voucher discount (<span className="font-bold">{pendingVoucher?.amount}%</span>) will be applied to the total payment amount (<span className="font-bold">₱{subtotalAmount.toFixed(2)}</span>).
                 </p>
                 <p className="text-sm text-muted-foreground mt-2">
                   This voucher can only be used once. Any excess amount will not be refunded or carried over.

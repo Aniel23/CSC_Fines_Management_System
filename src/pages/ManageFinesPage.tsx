@@ -860,13 +860,13 @@ export default function ManageFinesPage() {
                   {/* Fine Statistics */}
                   <div className="grid grid-cols-2 gap-3">
                     <div className="p-3 bg-warning/5 rounded-lg border border-warning/20">
-                      <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-1">To Pay Amount</p>
+                      <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-1">Total Amount To Pay</p>
                       <p className="text-xl font-black text-warning">₱{totalToPayAmount.toLocaleString()}</p>
                     </div>
                     <div className="p-3 bg-info/5 rounded-lg border border-info/20">
                       <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-1">Pending Approval</p>
-                      <p className="text-xl font-black text-info">₱{totalPendingAmount.toLocaleString()}</p>
-                      <p className="text-[10px] text-muted-foreground mt-1">Balance: ₱{totalPendingBalance.toLocaleString()}</p>
+                      <p className="text-xl font-black text-info">{pendingApprovalFines.length}</p>
+                      <p className="text-[10px] text-muted-foreground mt-1">payments need approval</p>
                     </div>
                     <div className="p-3 bg-destructive/5 rounded-lg border border-destructive/20">
                       <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-1">Overall Balance</p>

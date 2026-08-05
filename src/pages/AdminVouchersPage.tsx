@@ -142,8 +142,8 @@ export default function AdminVouchersPage() {
     const voucherAmount = parseFloat(amount);
     const limit = usageLimit ? parseInt(usageLimit) : undefined;
 
-    if (isNaN(voucherAmount) || voucherAmount <= 0) {
-      toast.error("Please enter a valid amount");
+    if (isNaN(voucherAmount) || voucherAmount < 1 || voucherAmount > 100) {
+      toast.error("Please enter a valid percentage between 1 and 100");
       return;
     }
 
@@ -336,8 +336,8 @@ export default function AdminVouchersPage() {
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
                   <Label>Voucher Code</Label>
-                  <Input 
-                    placeholder="e.g. COMMUNITY50" 
+                  <Input
+                    placeholder="e.g. EARLYBIRD50"
                     value={code}
                     onChange={(e) => setCode(e.target.value.toUpperCase())}
                   />
@@ -345,13 +345,16 @@ export default function AdminVouchersPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Discount Amount (₱)</Label>
-                    <Input 
-                      type="number" 
-                      placeholder="0.00" 
+                    <Label>Discount Percentage (%)</Label>
+                    <Input
+                      type="number"
+                      placeholder="e.g., 50"
+                      min="1"
+                      max="100"
                       value={amount}
                       onChange={(e) => setAmount(e.target.value)}
                     />
+                    <p className="text-xs text-muted-foreground">Enter a percentage between 1-100</p>
                   </div>
                   <div className="space-y-2">
                     <Label>Usage Limit (Optional)</Label>
@@ -450,7 +453,7 @@ export default function AdminVouchersPage() {
                         <TableRow>
                           <TableHead>Code</TableHead>
                           <TableHead>Description</TableHead>
-                          <TableHead>Amount</TableHead>
+                          <TableHead>Discount</TableHead>
                           <TableHead>Used</TableHead>
                           <TableHead>Status</TableHead>
                           <TableHead>Expires</TableHead>
@@ -476,7 +479,7 @@ export default function AdminVouchersPage() {
                               )}
                             </TableCell>
                             <TableCell className="font-bold">
-                              ₱{voucher.amount.toFixed(2)}
+                              {voucher.amount}%
                             </TableCell>
                             <TableCell>
                               <Badge variant="outline">
@@ -555,8 +558,8 @@ export default function AdminVouchersPage() {
                             
                             <div className="flex justify-between text-sm pt-3 border-t">
                               <div>
-                                <p className="text-muted-foreground mb-1">Amount</p>
-                                <p className="font-bold text-base">₱{voucher.amount.toFixed(2)}</p>
+                                <p className="text-muted-foreground mb-1">Discount</p>
+                                <p className="font-bold text-base">{voucher.amount}%</p>
                               </div>
                               <div className="text-right">
                                 <p className="text-muted-foreground mb-1">Used By</p>
