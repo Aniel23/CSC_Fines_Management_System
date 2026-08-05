@@ -348,7 +348,7 @@ export default function StudentsPage() {
                   className="space-y-4"
                 >
                   {!editingStudent && (
-                    <div className="bg-blue-50 text-blue-800 p-3 rounded-md flex gap-2 text-sm">
+                    <div className="bg-primary/5 text-foreground p-3 rounded-md flex gap-2 text-sm border border-primary/20">
                       <Info className="h-5 w-5 shrink-0" />
                       <p>
                         Adding a student here only creates their profile. 

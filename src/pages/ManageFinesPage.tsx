@@ -667,7 +667,7 @@ export default function ManageFinesPage() {
                         type="radio"
                         checked={!useCustomAmount}
                         onChange={() => setUseCustomAmount(false)}
-                        className="rounded border-gray-300"
+                        className="rounded border-border"
                       />
                       <span className="text-sm">Standard: ₱{allFineTypes.find(t => t.name === selectedFineType)?.amount || 0}</span>
                     </label>
@@ -676,7 +676,7 @@ export default function ManageFinesPage() {
                         type="radio"
                         checked={useCustomAmount}
                         onChange={() => setUseCustomAmount(true)}
-                        className="rounded border-gray-300"
+                        className="rounded border-border"
                       />
                       <span className="text-sm">Custom</span>
                     </label>

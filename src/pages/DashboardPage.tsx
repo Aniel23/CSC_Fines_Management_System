@@ -165,8 +165,8 @@ export default function DashboardPage() {
       title: "Total Fines",
       value: totalFines,
       icon: FileText,
-      color: "text-blue-500",
-      bgColor: "bg-blue-500/10",
+      color: "text-primary",
+      bgColor: "bg-primary/10",
       link: "/admin-fines"
     },
     {

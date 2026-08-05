@@ -223,7 +223,7 @@ export default function StudentDashboardPage() {
         </div>
 
         {/* Violations & Fines Tabs */}
-        <Card className="card-elevated overflow-hidden bg-card text-card-foreground shadow-sm bg-white dark:bg-card/50 dark:backdrop-blur-sm">
+        <Card className="card-elevated overflow-hidden bg-card text-card-foreground shadow-sm">
           <CardHeader className="border-b border-border/50">
             <CardTitle className="font-display">
               Violations & Payment Status
@@ -374,7 +374,7 @@ export default function StudentDashboardPage() {
                 {toPayFines.length > 0 ? (
                   <div className="space-y-4">
                     {toPayFines.map((fine) => (
-                      <div key={fine.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl border-2 border-warning/20 bg-warning/5 text-card-foreground gap-4 shadow-sm bg-white dark:bg-card/50 dark:backdrop-blur-sm">
+                      <div key={fine.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl border-2 border-warning/20 bg-warning/5 text-card-foreground gap-4 shadow-sm">
                         <div className="flex items-start gap-4">
                           <div className="h-10 w-10 rounded-full bg-warning/10 flex items-center justify-center text-warning shrink-0">
                             <AlertCircle className="h-5 w-5" />
@@ -411,7 +411,7 @@ export default function StudentDashboardPage() {
                 {pendingApprovalFines.length > 0 ? (
                   <div className="space-y-4">
                     {pendingApprovalFines.map((fine) => (
-                      <div key={fine.id} className="flex items-center justify-between p-4 rounded-xl border-2 border-info/20 bg-info/5 text-card-foreground shadow-sm bg-white dark:bg-card/50 dark:backdrop-blur-sm">
+                      <div key={fine.id} className="flex items-center justify-between p-4 rounded-xl border-2 border-info/20 bg-info/5 text-card-foreground shadow-sm">
                         <div className="flex items-start gap-4">
                           <div className="h-10 w-10 rounded-full bg-info/10 flex items-center justify-center text-info shrink-0">
                             <Clock className="h-5 w-5 animate-pulse" />

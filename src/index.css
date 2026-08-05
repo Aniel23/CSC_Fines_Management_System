@@ -146,14 +146,13 @@
     border-color: hsl(var(--border));
   }
   .dark .card-elevated {
-    /* Transparent/Glass effect for dark mode */
-    background-color: hsl(var(--card) / 0.5);
+    background-color: hsl(var(--card) / 0.85);
     backdrop-filter: blur(12px);
     border-color: hsl(var(--border) / 0.5);
   }
 
   .dark .bg-sidebar {
-    background-color: hsl(var(--sidebar-background) / 0.5);
+    background-color: hsl(var(--sidebar-background) / 0.85);
     backdrop-filter: blur(12px);
     border-right-color: hsl(var(--sidebar-border) / 0.5);
   }

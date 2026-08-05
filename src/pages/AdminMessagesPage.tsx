@@ -325,7 +325,7 @@ export default function AdminMessagesPage() {
                         <div className="flex items-center justify-center">
                           <input
                             type="checkbox"
-                            className="h-4 w-4 rounded border-gray-300"
+                            className="h-4 w-4 rounded border-border"
                             checked={filteredMessages.length > 0 && selectedMessages.size === filteredMessages.length}
                             onChange={toggleSelectAll}
                           />
@@ -348,7 +348,7 @@ export default function AdminMessagesPage() {
                           <div className="flex items-center justify-center">
                             <input
                               type="checkbox"
-                              className="h-4 w-4 rounded border-gray-300"
+                              className="h-4 w-4 rounded border-border"
                               checked={selectedMessages.has(msg.id)}
                               onChange={(e) => {
                                 e.stopPropagation();

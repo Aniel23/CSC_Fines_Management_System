@@ -244,7 +244,7 @@ export default function RegisterPage() {
                 <img
                   src="/csc-logo.png"
                   alt="CSC Logo"
-                  className="w-16 h-16 rounded-xl bg-white p-1.5 shadow-lg"
+                  className="w-16 h-16 rounded-xl bg-card p-1.5 shadow-lg"
                   onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/csc-logo.jpg'; }}
                 />
                 <div>

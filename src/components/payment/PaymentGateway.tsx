@@ -236,7 +236,7 @@ export default function PaymentGateway({ amount, fineIds, onSuccess, onCancel }:
           const parent = target.parentElement;
           if (parent) {
             const fallback = document.createElement('div');
-            fallback.className = 'w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center text-gray-600 font-bold text-sm';
+            fallback.className = 'w-12 h-12 bg-muted rounded-lg flex items-center justify-center text-muted-foreground font-bold text-sm';
             fallback.textContent = method.name.charAt(0);
             parent.appendChild(fallback);
           }
@@ -326,21 +326,21 @@ export default function PaymentGateway({ amount, fineIds, onSuccess, onCancel }:
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex justify-center">
-              <div className="w-64 h-64 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center border-2 border-dashed border-gray-300">
+              <div className="w-64 h-64 bg-muted rounded-lg overflow-hidden flex items-center justify-center border-2 border-dashed border-border">
                 { (settings.payment_qr_url || paymentResponse.qrCode) ? (
                   <img src={settings.payment_qr_url || (paymentResponse.qrCode as string)} alt="Payment QR Code" className="w-full h-full object-contain" />
                 ) : (
                   <div className="text-center">
-                    <QrCode className="h-16 w-16 text-gray-400 mx-auto mb-2" />
-                    <p className="text-sm text-gray-500">QR Code Loading...</p>
+                    <QrCode className="h-16 w-16 text-muted-foreground mx-auto mb-2" />
+                    <p className="text-sm text-muted-foreground">QR Code Loading...</p>
                   </div>
                 )}
               </div>
             </div>
 
             <div className="text-center space-y-2">
-              <p className="text-sm text-gray-600">
-                Reference Number: <span className="font-mono font-bold">{paymentResponse.referenceNumber}</span>
+              <p className="text-sm text-muted-foreground">
+                Reference Number: <span className="font-mono font-bold text-foreground">{paymentResponse.referenceNumber}</span>
               </p>
             </div>
 
@@ -359,7 +359,7 @@ export default function PaymentGateway({ amount, fineIds, onSuccess, onCancel }:
                 <div className="flex items-center gap-2">
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button onClick={() => setIsUploadModalOpen(true)} className="bg-primary text-white flex items-center gap-2">
+                      <Button onClick={() => setIsUploadModalOpen(true)} className="bg-primary text-primary-foreground flex items-center gap-2">
                         <Plus className="h-4 w-4" />
                         Choose Images / Videos
                       </Button>
@@ -439,7 +439,7 @@ export default function PaymentGateway({ amount, fineIds, onSuccess, onCancel }:
                             <video src={p.src} className="w-full h-36 object-cover bg-black" controls />
                           )}
                           <div className="absolute top-2 right-2 flex gap-2">
-                            <Button size="icon" variant="ghost" onClick={() => removeTempAt(idx)} className="bg-white/80">
+                            <Button size="icon" variant="ghost" onClick={() => removeTempAt(idx)} className="bg-background/80 dark:bg-card/80">
                               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M6.707 6.707a1 1 0 00-1.414-1.414L2 8.586 6.707 13.293a1 1 0 001.414-1.414L4.414 8.586l2.293-2.293z" clipRule="evenodd"/></svg>
                             </Button>
                           </div>
@@ -492,10 +492,10 @@ export default function PaymentGateway({ amount, fineIds, onSuccess, onCancel }:
 
       {/* Payment Instructions */}
       {selectedMethod && !showQR && (
-        <Card className="bg-blue-50 border-blue-200">
+        <Card className="bg-primary/5 border-primary/20">
           <CardContent className="p-4 text-center">
-            <h4 className="font-semibold text-blue-900 mb-2">Instructions:</h4>
-            <p className="text-sm text-blue-800">
+            <h4 className="font-semibold text-foreground mb-2">Instructions:</h4>
+            <p className="text-sm text-muted-foreground">
               Click the button below to generate your unique payment QR code.
               You can scan this code with GCash, Maya, or any banking app to pay.
             </p>
@@ -504,10 +504,10 @@ export default function PaymentGateway({ amount, fineIds, onSuccess, onCancel }:
       )}
 
       {showQR && (
-        <Card className="bg-blue-50 border-blue-200">
+        <Card className="bg-primary/5 border-primary/20">
           <CardContent className="p-4">
-            <h4 className="font-semibold text-blue-900 mb-2">How to Pay:</h4>
-            <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside">
+            <h4 className="font-semibold text-foreground mb-2">How to Pay:</h4>
+            <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
               <li>Open your GCash, Maya, or Banking App</li>
               <li>Select "Scan QR" or "Scan to Pay"</li>
               <li>Scan the QR code displayed above</li>

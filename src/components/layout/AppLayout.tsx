@@ -111,7 +111,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             <img
               src="/csc-logo.png"
               alt="CSC Logo"
-              className="h-7 w-7 rounded-full shadow-sm bg-white/80 p-[2px]"
+              className="h-7 w-7 rounded-sm shadow-sm bg-card p-[2px]"
               onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/csc-logo.jpg'; }}
             />
             <div className="text-lg font-bold text-foreground">CSC Fines Management</div>
@@ -166,7 +166,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           </div>
         </header>
 
-        <main className="flex-1 overflow-auto p-4 md:p-6 bg-blue-950/5 dark:bg-blue-950/10">
+        <main className="flex-1 overflow-auto p-4 md:p-6 bg-muted/30">
           {children}
         </main>
         <Dialog open={showSignOutModal} onOpenChange={setShowSignOutModal}>
