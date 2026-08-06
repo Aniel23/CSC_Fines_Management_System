@@ -865,19 +865,32 @@ export default function AdminFinesPage() {
                               </p>
                             </div>
                             {fine.status === "Pending" ? (
-                              <button
-                                onClick={() => setConfirmingFine(fine)}
-                                disabled={updatingId === fine.id}
-                                title="Approve Payment"
-                                className="inline-flex items-center gap-2 hover:opacity-80 transition-opacity"
-                              >
-                                <Badge className="bg-warning text-white cursor-pointer">
-                                  Pending Approval
-                                </Badge>
-                                {updatingId === fine.id && (
-                                  <RotateCw className="h-4 w-4 animate-spin text-muted-foreground" />
-                                )}
-                              </button>
+                              <div className="flex items-center gap-1.5">
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  className="h-8 bg-green-600 hover:bg-green-700 text-white"
+                                  onClick={() => setConfirmingFine(fine)}
+                                  disabled={updatingId === fine.id}
+                                >
+                                  {updatingId === fine.id ? (
+                                    <Loader className="h-3 w-3 animate-spin" />
+                                  ) : (
+                                    <CheckCircle className="h-3 w-3 mr-1" />
+                                  )}
+                                  Approve
+                                </Button>
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  className="h-8"
+                                  onClick={() => handleRejectPayment(fine)}
+                                  disabled={updatingId === fine.id}
+                                >
+                                  <X className="h-3 w-3 mr-1" />
+                                  Reject
+                                </Button>
+                              </div>
                             ) : (
                               <Badge
                                 className={
