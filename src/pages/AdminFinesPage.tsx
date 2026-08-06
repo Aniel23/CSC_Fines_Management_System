@@ -59,6 +59,7 @@ export default function AdminFinesPage() {
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [confirmingFine, setConfirmingFine] = useState<any | null>(null);
+  const [rejectingFine, setRejectingFine] = useState<any | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState<any | null>(null);
 
@@ -269,7 +270,7 @@ export default function AdminFinesPage() {
 
       await refetch();
       toast.success("Payment rejected.");
-      setConfirmingFine(null);
+      setRejectingFine(null);
     } catch (error) {
       console.error("Error rejecting payment:", error);
       toast.error("Failed to reject payment");
@@ -782,7 +783,7 @@ export default function AdminFinesPage() {
                                     variant="destructive"
                                     size="sm"
                                     className="h-8"
-                                    onClick={() => handleRejectPayment(fine)}
+                                    onClick={() => setRejectingFine(fine)}
                                     disabled={updatingId === fine.id}
                                   >
                                     <X className="h-3 w-3 mr-1" />
@@ -884,8 +885,8 @@ export default function AdminFinesPage() {
                                   variant="destructive"
                                   size="sm"
                                   className="h-8"
-                                  onClick={() => handleRejectPayment(fine)}
-                                  disabled={updatingId === fine.id}
+                                  onClick={() => setRejectingFine(fine)}
+                              disabled={updatingId === fine.id}
                                 >
                                   <X className="h-3 w-3 mr-1" />
                                   Reject
@@ -1070,6 +1071,70 @@ export default function AdminFinesPage() {
                   </>
                 ) : (
                   "Confirm Approval"
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Rejection Confirmation Dialog */}
+        <AlertDialog open={!!rejectingFine} onOpenChange={(open) => !open && setRejectingFine(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-destructive" />
+                Confirm Payment Rejection
+              </AlertDialogTitle>
+              <AlertDialogDescription asChild>
+                {rejectingFine && (
+                  <div className="mt-4 space-y-4 text-sm text-muted-foreground">
+                    <p>Are you sure you want to reject this payment? The student's payment proof will be removed and the fine will be reverted to "To Pay" status.</p>
+
+                    <div className="p-4 bg-muted/50 rounded-lg space-y-2 border">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Student:</span>
+                        <span className="font-bold">{rejectingFine.student?.name}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Violation:</span>
+                        <span className="font-bold">{rejectingFine.fine_type}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Current Balance:</span>
+                        <span className="font-bold">₱{rejectingFine.balance.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm border-t pt-2 mt-2">
+                        <span className="text-muted-foreground font-bold">Submitted Payment:</span>
+                        <span className="font-bold text-lg text-destructive">₱{(rejectingFine.pending_payment || rejectingFine.balance).toFixed(2)}</span>
+                      </div>
+                    </div>
+
+                    <p className="text-xs text-destructive/80 font-medium">
+                      This action cannot be undone. The student will need to submit a new proof of payment.
+                    </p>
+                  </div>
+                )}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={updatingId !== null}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={updatingId !== null}
+                onClick={async (e) => {
+                  e.preventDefault();
+                  if (rejectingFine) {
+                    await handleRejectPayment(rejectingFine);
+                  }
+                }}
+                className="bg-destructive hover:bg-destructive/90 text-white"
+              >
+                {updatingId ? (
+                  <>
+                    <RotateCw className="mr-2 h-4 w-4 animate-spin" />
+                    Rejecting...
+                  </>
+                ) : (
+                  "Confirm Rejection"
                 )}
               </AlertDialogAction>
             </AlertDialogFooter>
