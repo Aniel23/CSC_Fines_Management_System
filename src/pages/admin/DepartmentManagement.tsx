@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -56,12 +56,14 @@ import {
   Filter,
   Archive,
   RefreshCw,
-  AlertTriangle
+  AlertTriangle,
+  Upload
 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { toast } from 'sonner';
-import { createDepartment, getDepartments, updateDepartment, deleteDepartment, createStudent, updateStudent, deleteStudent, binStudent, restoreStudent, archiveStudent, unarchiveStudent } from '@/integrations/supabase/queries';
+import { createDepartment, getDepartments, updateDepartment, deleteDepartment, createStudent, updateStudent, deleteStudent, binStudent, restoreStudent, archiveStudent, unarchiveStudent, getStudentsByStudentId, normalizeDepartmentKey } from '@/integrations/supabase/queries';
 import { useStudents } from '@/hooks/useStudents';
+import { parseStudentCsvRecords } from '@/lib/studentCsv';
 import type { Student } from '@/types';
 
 interface Department {
@@ -81,7 +83,9 @@ export default function DepartmentManagement() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isImportingCsv, setIsImportingCsv] = useState(false);
   const [editingDepartment, setEditingDepartment] = useState<Department | null>(null);
+  const studentImportInputRef = useRef<HTMLInputElement | null>(null);
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
   const [studentModalOpen, setStudentModalOpen] = useState(false);
   const [studentViewFilter, setStudentViewFilter] = useState<'active' | 'archived' | 'binned'>('active');
@@ -358,6 +362,105 @@ export default function DepartmentManagement() {
     setEditingDepartment(null);
   };
 
+  const parseCsvLine = (line: string) => {
+    const result: string[] = [];
+    let current = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+
+      if (char === '"') {
+        if (inQuotes && line[i + 1] === '"') {
+          current += '"';
+          i += 1;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (char === ',' && !inQuotes) {
+        result.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+
+    result.push(current.trim());
+    return result;
+  };
+
+  const handleCsvImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsImportingCsv(true);
+
+    try {
+      const text = await file.text();
+      const rows = text
+        .split(/\r?\n/)
+        .map((row) => row.trim())
+        .filter(Boolean);
+
+      if (rows.length === 0) {
+        toast.error('CSV file is empty');
+        return;
+      }
+
+      const defaultDepartment = (selectedDepartment || editingDepartment?.name || formData.name || '').trim();
+      const { records: entries } = parseStudentCsvRecords(text, defaultDepartment);
+
+      if (entries.length === 0) {
+        toast.error('No valid student rows were found in the CSV file');
+        return;
+      }
+
+      if (!defaultDepartment && !entries.some((record) => record.department && record.department.trim())) {
+        toast.error('Please enter a department name before importing, or include a department column in the CSV');
+        return;
+      }
+
+      let imported = 0;
+      for (const record of entries) {
+        const studentId = String(record.student_id).trim().replace(/\s+/g, '').replace(/^(\d{4})[-\s]?(\d{4,5})$/, '$1-$2');
+        const name = String(record.name).trim();
+        const resolvedDepartment = (defaultDepartment || (record.department || '').trim()).trim();
+
+        if (!/^\d{4}-\d{4,5}$/.test(studentId) || !name || !resolvedDepartment) {
+          continue;
+        }
+
+        const existing = await getStudentsByStudentId(studentId);
+        if (existing) continue;
+
+        const genderValue = (record.gender || 'Male').trim();
+        const validGender = ['Male', 'Female', 'Other'].includes(genderValue) ? genderValue : 'Other';
+
+        await createStudent({
+          student_id: studentId,
+          name,
+          age: Number(record.age) || 18,
+          gender: validGender as 'Male' | 'Female' | 'Other',
+          department: resolvedDepartment,
+          address: record.address?.trim() || null
+        });
+
+        imported += 1;
+      }
+
+      toast.success(imported > 0 ? `Imported ${imported} student${imported === 1 ? '' : 's'} from CSV` : 'No new students were imported');
+      refetchStudents();
+    } catch (error) {
+      console.error('Student CSV import failed:', error);
+      toast.error('Failed to import student CSV file');
+    } finally {
+      setIsImportingCsv(false);
+      if (studentImportInputRef.current) {
+        studentImportInputRef.current.value = '';
+      }
+    }
+  };
+
   const filteredDepartments = departments.filter(dept =>
     dept.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     dept.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -370,94 +473,94 @@ export default function DepartmentManagement() {
     <AppLayout>
       <div className="content-wrapper pt-0">
         <div className="space-y-6">
-          {/* Header */}
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
               <h1 className="text-3xl font-bold">Department Management</h1>
               <p className="text-muted-foreground">Manage academic departments and their information</p>
             </div>
-            
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button onClick={resetForm}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Department
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[500px]">
-                <DialogHeader>
-                  <DialogTitle>
-                    {editingDepartment ? 'Edit Department' : 'Add New Department'}
-                  </DialogTitle>
-                </DialogHeader>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div>
-                    <Label htmlFor="name">Department Name *</Label>
-                    <Input
-                      id="name"
-                      value={formData.name}
-                      onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                      placeholder="e.g., Computer Science"
-                      required
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="description">Description</Label>
-                    <textarea
-                      id="description"
-                      className="w-full min-h-[80px] px-3 py-2 text-sm ring-offset-background border border-input bg-background rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                      value={formData.description}
-                      onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                      placeholder="Brief description of the department"
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="head_of_department">Head of Department</Label>
-                    <Input
-                      id="head_of_department"
-                      value={formData.head_of_department}
-                      onChange={(e) => setFormData(prev => ({ ...prev, head_of_department: e.target.value }))}
-                      placeholder="e.g., Dr. John Smith"
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="office_location">Office Location</Label>
-                    <Input
-                      id="office_location"
-                      value={formData.office_location}
-                      onChange={(e) => setFormData(prev => ({ ...prev, office_location: e.target.value }))}
-                      placeholder="e.g., Building A, Room 101"
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="contact_email">Contact Email</Label>
-                    <Input
-                      id="contact_email"
-                      type="email"
-                      value={formData.contact_email}
-                      onChange={(e) => setFormData(prev => ({ ...prev, contact_email: e.target.value }))}
-                      placeholder="e.g., dept@university.edu"
-                    />
-                  </div>
-                  
-                  <DialogFooter>
-                    <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                      Cancel
-                    </Button>
-                    <Button type="submit">
-                      {editingDepartment ? 'Update' : 'Create'} Department
-                    </Button>
-                  </DialogFooter>
-                </form>
-              </DialogContent>
-            </Dialog>
+
+            <div className="flex items-center gap-2">
+              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button onClick={resetForm}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Department
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[500px]">
+                  <DialogHeader>
+                    <DialogTitle>
+                      {editingDepartment ? 'Edit Department' : 'Add New Department'}
+                    </DialogTitle>
+                  </DialogHeader>
+                  <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                      <Label htmlFor="name">Department Name *</Label>
+                      <Input
+                        id="name"
+                        value={formData.name}
+                        onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                        placeholder="e.g., Computer Science"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="description">Description</Label>
+                      <textarea
+                        id="description"
+                        className="w-full min-h-[80px] px-3 py-2 text-sm ring-offset-background border border-input bg-background rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                        value={formData.description}
+                        onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                        placeholder="Brief description of the department"
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="head_of_department">Head of Department</Label>
+                      <Input
+                        id="head_of_department"
+                        value={formData.head_of_department}
+                        onChange={(e) => setFormData(prev => ({ ...prev, head_of_department: e.target.value }))}
+                        placeholder="e.g., Dr. John Smith"
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="office_location">Office Location</Label>
+                      <Input
+                        id="office_location"
+                        value={formData.office_location}
+                        onChange={(e) => setFormData(prev => ({ ...prev, office_location: e.target.value }))}
+                        placeholder="e.g., Building A, Room 101"
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="contact_email">Contact Email</Label>
+                      <Input
+                        id="contact_email"
+                        type="email"
+                        value={formData.contact_email}
+                        onChange={(e) => setFormData(prev => ({ ...prev, contact_email: e.target.value }))}
+                        placeholder="e.g., dept@university.edu"
+                      />
+                    </div>
+
+                    <DialogFooter>
+                      <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
+                        Cancel
+                      </Button>
+                      <Button type="submit">
+                        {editingDepartment ? 'Update' : 'Create'} Department
+                      </Button>
+                    </DialogFooter>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            </div>
           </div>
 
-          {/* Search and Filter */}
           <Card>
             <CardContent className="p-4">
               <div className="flex flex-col sm:flex-row gap-4">
@@ -478,7 +581,6 @@ export default function DepartmentManagement() {
             </CardContent>
           </Card>
 
-          {/* Departments Grid */}
           {loading ? (
             <div className="flex justify-center items-center h-64">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -523,28 +625,28 @@ export default function DepartmentManagement() {
                         {department.description}
                       </p>
                     )}
-                    
+
                     {department.head_of_department && (
                       <div className="text-sm">
                         <span className="font-medium">Head:</span> {department.head_of_department}
                       </div>
                     )}
-                    
+
                     {department.office_location && (
                       <div className="text-sm">
                         <span className="font-medium">Location:</span> {department.office_location}
                       </div>
                     )}
-                    
+
                     {department.contact_email && (
                       <div className="text-sm">
-                        <span className="font-medium">Email:</span> 
+                        <span className="font-medium">Email:</span>
                         <a href={`mailto:${department.contact_email}`} className="text-primary hover:underline ml-1">
                           {department.contact_email}
                         </a>
                       </div>
                     )}
-                    
+
                     <div className="flex justify-between items-center pt-3 border-t">
                       <div className="text-xs text-muted-foreground">
                         Created: {new Date(department.created_at).toLocaleDateString()}
@@ -579,7 +681,6 @@ export default function DepartmentManagement() {
             </div>
           )}
 
-          {/* Empty State */}
           {!loading && filteredDepartments.length === 0 && (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-12">
@@ -588,10 +689,9 @@ export default function DepartmentManagement() {
                   {searchTerm ? 'No departments found' : 'No departments yet'}
                 </h3>
                 <p className="text-muted-foreground text-center mb-4">
-                  {searchTerm 
+                  {searchTerm
                     ? 'Try adjusting your search terms'
-                    : 'Get started by adding your first department'
-                  }
+                    : 'Get started by adding your first department'}
                 </p>
                 {!searchTerm && (
                   <Button onClick={() => setIsDialogOpen(true)}>
@@ -613,7 +713,14 @@ export default function DepartmentManagement() {
               setStudentModalOpen(true);
             }}
           >
-            <DialogContent className="sm:max-w-5xl">
+            <DialogContent className="sm:max-w-5xl relative">
+              {isImportingCsv && (
+                <div className="absolute inset-0 bg-background/80 backdrop-blur-sm rounded-lg flex flex-col items-center justify-center z-50">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
+                  <h3 className="text-lg font-semibold">Importing students...</h3>
+                  <p className="text-sm text-muted-foreground mt-2">Please wait while we process your CSV file</p>
+                </div>
+              )}
               <DialogHeader className="pr-10">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
@@ -624,14 +731,34 @@ export default function DepartmentManagement() {
                       {selectedDepartmentInfo?.description || `Showing students in ${selectedDepartment || 'selected'} department.`}
                     </p>
                   </div>
-                  <Button onClick={() => openStudentDialog()} className="w-full sm:w-auto">
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add Student
-                  </Button>
+                  <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => studentImportInputRef.current?.click()}
+                      disabled={isImportingCsv || !selectedDepartment}
+                      className="w-full sm:w-auto"
+                    >
+                      <Upload className="mr-2 h-4 w-4" />
+                      {isImportingCsv ? 'Importing...' : 'Import CSV'}
+                    </Button>
+                    <Button onClick={() => openStudentDialog()} disabled={isImportingCsv} className="w-full sm:w-auto">
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add Student
+                    </Button>
+                    <input
+                      ref={studentImportInputRef}
+                      type="file"
+                      accept=".csv,text/csv"
+                      className="hidden"
+                      onChange={handleCsvImport}
+                      disabled={isImportingCsv}
+                    />
+                  </div>
                 </div>
               </DialogHeader>
 
-              <div className="space-y-6">
+              <div className="space-y-6" style={{ pointerEvents: isImportingCsv ? 'none' : 'auto', opacity: isImportingCsv ? 0.5 : 1 }}>
                 <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                   <div>
                     <p className="text-xs text-muted-foreground mt-1">
@@ -1003,7 +1130,6 @@ export default function DepartmentManagement() {
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
-
         </div>
       </div>
     </AppLayout>

@@ -38,6 +38,17 @@ export async function getStudentByStudentId(studentId: string) {
   return data;
 }
 
+export async function getStudentsByStudentId(studentId: string) {
+  const { data, error } = await supabase
+    .from("students")
+    .select("id")
+    .eq("student_id", studentId)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
+}
+
 export async function createStudent(
   student: Database["public"]["Tables"]["students"]["Insert"]
 ) {
@@ -364,6 +375,27 @@ export async function deleteCSCOfficer(id: string) {
   if (error) throw error;
 }
 
+export function normalizeDepartmentKey(value: string | null | undefined) {
+  if (!value) return "";
+
+  const cleaned = value
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "");
+
+  if (cleaned.includes("BSIS")) return "BSIS";
+  if (cleaned.includes("BPA")) return "BPA";
+  if (cleaned.includes("BTVTED")) return "BTVTED";
+
+  return cleaned || value.trim();
+}
+
+export function departmentMatches(departmentValue: string | null | undefined, targetDepartment: string | null | undefined) {
+  if (!departmentValue || !targetDepartment) return false;
+
+  return normalizeDepartmentKey(departmentValue) === normalizeDepartmentKey(targetDepartment);
+}
+
 // Department queries
 export async function getUniqueStudentDepartments() {
   const { data, error } = await supabase
@@ -371,12 +403,11 @@ export async function getUniqueStudentDepartments() {
     .select("department");
 
   if (error) throw error;
-  
-  // Get unique departments from the students table
-  const uniqueDepts = Array.from(new Set((data || []).map(s => s.department)))
+
+  const uniqueDepts = Array.from(new Set((data || []).map((s) => s.department)))
     .filter(Boolean)
     .sort();
-    
+
   return uniqueDepts;
 }
 
@@ -388,20 +419,28 @@ export async function getDepartments() {
 
   if (deptError) throw deptError;
 
-  // Get student count for each department
-  const departmentsWithCounts = await Promise.all(
-    (departments || []).map(async (dept: any) => {
-      const { count, error: countError } = await supabase
-        .from("students")
-        .select("*", { count: 'exact', head: true })
-        .eq("department", dept.name);
+  const { data: allStudents, error: studentError } = await supabase
+    .from("students")
+    .select("department")
+    .is("deleted_at", null)
+    .eq("is_archived", false);
 
-      return {
-        ...dept,
-        student_count: countError ? 0 : count || 0
-      };
-    })
-  );
+  if (studentError) throw studentError;
+
+  const departmentCounts = new Map<string, number>();
+  for (const student of allStudents || []) {
+    const key = (student.department || '').trim();
+    if (!key) continue;
+    departmentCounts.set(key, (departmentCounts.get(key) || 0) + 1);
+  }
+
+  const departmentsWithCounts = (departments || []).map((dept: any) => {
+    const deptKey = (dept.name || '').trim();
+    return {
+      ...dept,
+      student_count: departmentCounts.get(deptKey) || 0
+    };
+  });
 
   return departmentsWithCounts;
 }
