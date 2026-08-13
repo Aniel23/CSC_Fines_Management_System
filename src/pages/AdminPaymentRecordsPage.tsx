@@ -354,6 +354,7 @@ export default function AdminPaymentRecordsPage() {
                   <Table>
                     <TableHeader>
                       <TableRow className="table-header">
+                        <TableHead className="w-[50px]">#</TableHead>
                         <TableHead>Student ID</TableHead>
                         <TableHead>Student Name</TableHead>
                         <TableHead>Original Amount</TableHead>
@@ -365,8 +366,9 @@ export default function AdminPaymentRecordsPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredRecords.map((record) => (
+                      {filteredRecords.map((record, index) => (
                         <TableRow key={record.id}>
+                          <TableCell className="font-medium text-muted-foreground">{index + 1}</TableCell>
                           <TableCell className="font-medium">
                             {record.studentId}
                           </TableCell>

@@ -280,6 +280,7 @@ export default function AdminVouchersPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead className="w-[50px]">#</TableHead>
                         <TableHead>Code</TableHead>
                         <TableHead>Student ID</TableHead>
                         <TableHead>Date Used</TableHead>
@@ -297,6 +298,7 @@ export default function AdminVouchersPage() {
                       ).sort((a, b) => new Date(b.usedAt).getTime() - new Date(a.usedAt).getTime())
                       .map((record, idx) => (
                         <TableRow key={idx}>
+                          <TableCell className="font-medium text-muted-foreground">{idx + 1}</TableCell>
                           <TableCell className="font-mono font-bold">{record.code}</TableCell>
                           <TableCell>{record.studentId}</TableCell>
                           <TableCell>{new Date(record.usedAt).toLocaleString()}</TableCell>
@@ -305,7 +307,7 @@ export default function AdminVouchersPage() {
                       ))}
                       {vouchers.every(v => !v.usedBy || v.usedBy.length === 0) && (
                         <TableRow>
-                          <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                          <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                             No vouchers have been used yet.
                           </TableCell>
                         </TableRow>
@@ -451,6 +453,7 @@ export default function AdminVouchersPage() {
                     <Table className="min-w-[800px]">
                       <TableHeader>
                         <TableRow>
+                          <TableHead className="w-[50px]">#</TableHead>
                           <TableHead>Code</TableHead>
                           <TableHead>Description</TableHead>
                           <TableHead>Discount</TableHead>
@@ -461,10 +464,11 @@ export default function AdminVouchersPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {vouchers.map((voucher) => {
+                        {vouchers.map((voucher, index) => {
                           const status = getVoucherStatus(voucher);
                           return (
                           <TableRow key={voucher.id}>
+                            <TableCell className="font-medium text-muted-foreground">{index + 1}</TableCell>
                             <TableCell className="font-mono font-bold text-primary">
                               {voucher.code}
                             </TableCell>

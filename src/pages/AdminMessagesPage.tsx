@@ -331,6 +331,7 @@ export default function AdminMessagesPage() {
                           />
                         </div>
                       </TableHead>
+                      <TableHead className="w-[40px]">#</TableHead>
                       <TableHead className="w-[30px] sm:w-[50px] px-2 sm:px-4"></TableHead>
                       <TableHead className="min-w-[120px]">From</TableHead>
                       <TableHead className="min-w-[200px] hidden sm:table-cell">Subject / Preview</TableHead>
@@ -339,7 +340,7 @@ export default function AdminMessagesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredMessages.map((msg) => (
+                    {filteredMessages.map((msg, index) => (
                       <TableRow 
                         key={msg.id} 
                         className={msg.is_read ? "opacity-70" : "font-medium bg-muted/20"}
@@ -357,6 +358,7 @@ export default function AdminMessagesPage() {
                             />
                           </div>
                         </TableCell>
+                        <TableCell className="font-medium text-muted-foreground">{index + 1}</TableCell>
                         <TableCell className="px-2 sm:px-4">
                           {!msg.is_read && (
                             <div className="h-2.5 w-2.5 rounded-full bg-primary" title="Unread" />

@@ -617,6 +617,7 @@ export default function AdminFinesPage() {
                   <Table>
                     <TableHeader>
                       <TableRow className="table-header">
+                        <TableHead className="w-[50px]">#</TableHead>
                         <TableHead>Student ID</TableHead>
                         <TableHead>Name</TableHead>
                         <TableHead>Department</TableHead>
@@ -630,8 +631,9 @@ export default function AdminFinesPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredFines.map((fine) => (
+                      {filteredFines.map((fine, index) => (
                         <TableRow key={fine.id}>
+                          <TableCell className="font-medium text-muted-foreground">{index + 1}</TableCell>
                           <TableCell className="font-medium">
                             {fine.student?.student_id}
                           </TableCell>

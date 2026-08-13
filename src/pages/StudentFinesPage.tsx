@@ -282,6 +282,7 @@ export default function StudentFinesPage() {
                   <Table>
                     <TableHeader>
                       <TableRow className="table-header">
+                        <TableHead className="w-[50px]">#</TableHead>
                         <TableHead>Date</TableHead>
                         <TableHead>Type of Violation</TableHead>
                         <TableHead>Amount</TableHead>
@@ -292,8 +293,9 @@ export default function StudentFinesPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {studentFines.map((fine) => (
+                      {studentFines.map((fine, index) => (
                         <TableRow key={fine.id}>
+                          <TableCell className="font-medium text-muted-foreground">{index + 1}</TableCell>
                           <TableCell>
                             {new Date(fine.created_at).toLocaleDateString()}
                           </TableCell>

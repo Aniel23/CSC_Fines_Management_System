@@ -713,7 +713,7 @@ export default function DepartmentManagement() {
               setStudentModalOpen(true);
             }}
           >
-            <DialogContent className="sm:max-w-5xl relative">
+            <DialogContent className="sm:max-w-5xl">
               {isImportingCsv && (
                 <div className="absolute inset-0 bg-background/80 backdrop-blur-sm rounded-lg flex flex-col items-center justify-center z-50">
                   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
@@ -758,263 +758,267 @@ export default function DepartmentManagement() {
                 </div>
               </DialogHeader>
 
-              <div className="space-y-6" style={{ pointerEvents: isImportingCsv ? 'none' : 'auto', opacity: isImportingCsv ? 0.5 : 1 }}>
-                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                  <div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {filteredStudents.length} student{filteredStudents.length === 1 ? '' : 's'} found
-                    </p>
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-                    <div className="relative flex-1 sm:flex-none">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
-                      <Input
-                        placeholder="Search students..."
-                        value={studentSearch}
-                        onChange={(e) => setStudentSearch(e.target.value)}
-                        className="pl-10"
-                      />
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+                <div className="space-y-6" style={{ pointerEvents: isImportingCsv ? 'none' : 'auto', opacity: isImportingCsv ? 0.5 : 1 }}>
+                  <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                    <div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {filteredStudents.length} student{filteredStudents.length === 1 ? '' : 's'} found
+                      </p>
                     </div>
-                    <Tabs value={studentViewFilter} onValueChange={(value: 'active' | 'archived' | 'binned') => setStudentViewFilter(value)} className="w-full sm:w-auto">
-                      <TabsList className="grid w-full grid-cols-3">
-                        <TabsTrigger value="active">Active</TabsTrigger>
-                        <TabsTrigger value="archived">Archived</TabsTrigger>
-                        <TabsTrigger value="binned">Bin</TabsTrigger>
-                      </TabsList>
-                    </Tabs>
-                  </div>
-                </div>
 
-                {studentsLoading ? (
-                  <div className="flex justify-center items-center h-40">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                    <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+                      <div className="relative flex-1 sm:flex-none">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                        <Input
+                          placeholder="Search students..."
+                          value={studentSearch}
+                          onChange={(e) => setStudentSearch(e.target.value)}
+                          className="pl-10"
+                        />
+                      </div>
+                      <Tabs value={studentViewFilter} onValueChange={(value: 'active' | 'archived' | 'binned') => setStudentViewFilter(value)} className="w-full sm:w-auto">
+                        <TabsList className="grid w-full grid-cols-3">
+                          <TabsTrigger value="active">Active</TabsTrigger>
+                          <TabsTrigger value="archived">Archived</TabsTrigger>
+                          <TabsTrigger value="binned">Bin</TabsTrigger>
+                        </TabsList>
+                      </Tabs>
+                    </div>
                   </div>
-                ) : studentsError ? (
-                  <Card className="border-destructive/50 bg-destructive/5">
-                    <CardContent>
-                      <p className="text-sm text-destructive-foreground">Error loading students: {studentsError}</p>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="space-y-3 md:hidden">
-                      {filteredStudents.map((student) => (
-                        <Card key={student.id} className="border">
-                          <CardContent className="space-y-4 pt-4">
-                            <div className="space-y-1">
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="min-w-0">
-                                  <p className="font-medium break-words">{student.name}</p>
-                                  <p className="text-xs text-muted-foreground break-all">
-                                    {student.student_id}
-                                  </p>
+
+                  {studentsLoading ? (
+                    <div className="flex justify-center items-center h-40">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                    </div>
+                  ) : studentsError ? (
+                    <Card className="border-destructive/50 bg-destructive/5">
+                      <CardContent>
+                        <p className="text-sm text-destructive-foreground">Error loading students: {studentsError}</p>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="space-y-3 md:hidden">
+                        {filteredStudents.map((student) => (
+                          <Card key={student.id} className="border">
+                            <CardContent className="space-y-4 pt-4">
+                              <div className="space-y-1">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <p className="font-medium break-words">{student.name}</p>
+                                    <p className="text-xs text-muted-foreground break-all">
+                                      {student.student_id}
+                                    </p>
+                                  </div>
+                                  <Badge variant="secondary">{student.gender}</Badge>
                                 </div>
-                                <Badge variant="secondary">{student.gender}</Badge>
+                                <p className="text-sm text-muted-foreground">
+                                  Department: {student.department || '-'}
+                                </p>
                               </div>
-                              <p className="text-sm text-muted-foreground">
-                                Department: {student.department || '-'}
-                              </p>
-                            </div>
 
-                            <div className="grid grid-cols-2 gap-3 rounded-lg border bg-muted/20 p-3 text-sm">
-                              <div>
-                                <p className="text-xs text-muted-foreground">Age</p>
-                                <p className="font-medium">{student.age}</p>
+                              <div className="grid grid-cols-2 gap-3 rounded-lg border bg-muted/20 p-3 text-sm">
+                                <div>
+                                  <p className="text-xs text-muted-foreground">Age</p>
+                                  <p className="font-medium">{student.age}</p>
+                                </div>
+                                <div>
+                                  <p className="text-xs text-muted-foreground">Address</p>
+                                  <p className="font-medium break-words">{student.address || '-'}</p>
+                                </div>
                               </div>
-                              <div>
-                                <p className="text-xs text-muted-foreground">Address</p>
-                                <p className="font-medium break-words">{student.address || '-'}</p>
-                              </div>
-                            </div>
 
-                            <div className="flex flex-col gap-2">
-                              {(studentViewFilter === 'active' || studentViewFilter === 'archived') && (
-                                <Button
-                                  variant="outline"
-                                  className="w-full"
-                                  onClick={() => openStudentDialog(student)}
-                                >
-                                  <Edit className="mr-2 h-4 w-4" />
-                                  Edit Student
-                                </Button>
-                              )}
-                              {studentViewFilter === 'active' && (
-                                <>
+                              <div className="flex flex-col gap-2">
+                                {(studentViewFilter === 'active' || studentViewFilter === 'archived') && (
                                   <Button
                                     variant="outline"
                                     className="w-full"
-                                    onClick={() => handleStudentArchive(student)}
+                                    onClick={() => openStudentDialog(student)}
                                   >
-                                    <Archive className="mr-2 h-4 w-4" />
-                                    Archive Student
+                                    <Edit className="mr-2 h-4 w-4" />
+                                    Edit Student
                                   </Button>
-                                  <Button
-                                    variant="outline"
-                                    className="w-full text-destructive hover:text-destructive"
-                                    onClick={() => handleStudentBin(student)}
-                                  >
-                                    <Trash2 className="mr-2 h-4 w-4" />
-                                    Move to Bin
-                                  </Button>
-                                </>
-                              )}
-                              {studentViewFilter === 'archived' && (
-                                <>
-                                  <Button
-                                    variant="outline"
-                                    className="w-full"
-                                    onClick={() => handleStudentUnarchive(student)}
-                                  >
-                                    <RefreshCw className="mr-2 h-4 w-4" />
-                                    Unarchive Student
-                                  </Button>
-                                  <Button
-                                    variant="outline"
-                                    className="w-full text-destructive hover:text-destructive"
-                                    onClick={() => handleStudentBin(student)}
-                                  >
-                                    <Trash2 className="mr-2 h-4 w-4" />
-                                    Move to Bin
-                                  </Button>
-                                </>
-                              )}
-                              {studentViewFilter === 'binned' && (
-                                <>
-                                  <Button
-                                    variant="outline"
-                                    className="w-full"
-                                    onClick={() => handleStudentRestore(student)}
-                                  >
-                                    <RefreshCw className="mr-2 h-4 w-4" />
-                                    Restore Student
-                                  </Button>
-                                  <Button
-                                    variant="outline"
-                                    className="w-full text-destructive hover:text-destructive"
-                                    onClick={() => setStudentToDelete(student)}
-                                  >
-                                    <Trash2 className="mr-2 h-4 w-4" />
-                                    Delete Permanently
-                                  </Button>
-                                </>
-                              )}
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-
-                    <div className="hidden overflow-x-auto md:block">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Student ID</TableHead>
-                            <TableHead>Name</TableHead>
-                            <TableHead>Age</TableHead>
-                            <TableHead>Gender</TableHead>
-                            <TableHead>Department</TableHead>
-                            <TableHead>Address</TableHead>
-                            <TableHead>Actions</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {filteredStudents.map((student) => (
-                            <TableRow key={student.id}>
-                              <TableCell>{student.student_id}</TableCell>
-                              <TableCell>{student.name}</TableCell>
-                              <TableCell>{student.age}</TableCell>
-                              <TableCell>{student.gender}</TableCell>
-                              <TableCell>{student.department}</TableCell>
-                              <TableCell className="max-w-xs truncate">{student.address || '-'}</TableCell>
-                              <TableCell>
-                                <div className="flex flex-wrap gap-2">
-                                  {(studentViewFilter === 'active' || studentViewFilter === 'archived') && (
+                                )}
+                                {studentViewFilter === 'active' && (
+                                  <>
                                     <Button
                                       variant="outline"
-                                      size="sm"
-                                      onClick={() => openStudentDialog(student)}
-                                      className="h-8 w-8 p-0"
-                                      title="Edit Student"
+                                      className="w-full"
+                                      onClick={() => handleStudentArchive(student)}
                                     >
-                                      <Edit className="h-3 w-3" />
+                                      <Archive className="mr-2 h-4 w-4" />
+                                      Archive Student
                                     </Button>
-                                  )}
-                                  {studentViewFilter === 'active' && (
-                                    <>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => handleStudentArchive(student)}
-                                        className="h-8 w-8 p-0"
-                                        title="Archive Student"
-                                      >
-                                        <Archive className="h-3 w-3" />
-                                      </Button>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => handleStudentBin(student)}
-                                        className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                                        title="Move to Bin"
-                                      >
-                                        <Trash2 className="h-3 w-3" />
-                                      </Button>
-                                    </>
-                                  )}
-                                  {studentViewFilter === 'archived' && (
-                                    <>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => handleStudentUnarchive(student)}
-                                        className="h-8 w-8 p-0"
-                                        title="Unarchive Student"
-                                      >
-                                        <RefreshCw className="h-3 w-3" />
-                                      </Button>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => handleStudentBin(student)}
-                                        className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                                        title="Move to Bin"
-                                      >
-                                        <Trash2 className="h-3 w-3" />
-                                      </Button>
-                                    </>
-                                  )}
-                                  {studentViewFilter === 'binned' && (
-                                    <>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => handleStudentRestore(student)}
-                                        className="h-8 w-8 p-0"
-                                        title="Restore Student"
-                                      >
-                                        <RefreshCw className="h-3 w-3" />
-                                      </Button>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => setStudentToDelete(student)}
-                                        className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                                        title="Delete Permanently"
-                                      >
-                                        <Trash2 className="h-3 w-3" />
-                                      </Button>
-                                    </>
-                                  )}
-                                </div>
-                              </TableCell>
+                                    <Button
+                                      variant="outline"
+                                      className="w-full text-destructive hover:text-destructive"
+                                      onClick={() => handleStudentBin(student)}
+                                    >
+                                      <Trash2 className="mr-2 h-4 w-4" />
+                                      Move to Bin
+                                    </Button>
+                                  </>
+                                )}
+                                {studentViewFilter === 'archived' && (
+                                  <>
+                                    <Button
+                                      variant="outline"
+                                      className="w-full"
+                                      onClick={() => handleStudentUnarchive(student)}
+                                    >
+                                      <RefreshCw className="mr-2 h-4 w-4" />
+                                      Unarchive Student
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      className="w-full text-destructive hover:text-destructive"
+                                      onClick={() => handleStudentBin(student)}
+                                    >
+                                      <Trash2 className="mr-2 h-4 w-4" />
+                                      Move to Bin
+                                    </Button>
+                                  </>
+                                )}
+                                {studentViewFilter === 'binned' && (
+                                  <>
+                                    <Button
+                                      variant="outline"
+                                      className="w-full"
+                                      onClick={() => handleStudentRestore(student)}
+                                    >
+                                      <RefreshCw className="mr-2 h-4 w-4" />
+                                      Restore Student
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      className="w-full text-destructive hover:text-destructive"
+                                      onClick={() => setStudentToDelete(student)}
+                                    >
+                                      <Trash2 className="mr-2 h-4 w-4" />
+                                      Delete Permanently
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+
+                      <div className="hidden overflow-x-auto md:block">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="w-[50px]">#</TableHead>
+                              <TableHead>Student ID</TableHead>
+                              <TableHead>Name</TableHead>
+                              <TableHead>Age</TableHead>
+                              <TableHead>Gender</TableHead>
+                              <TableHead>Department</TableHead>
+                              <TableHead>Address</TableHead>
+                              <TableHead>Actions</TableHead>
                             </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
+                          </TableHeader>
+                          <TableBody>
+                            {filteredStudents.map((student, index) => (
+                              <TableRow key={student.id}>
+                                <TableCell className="font-medium text-muted-foreground">{index + 1}</TableCell>
+                                <TableCell>{student.student_id}</TableCell>
+                                <TableCell>{student.name}</TableCell>
+                                <TableCell>{student.age}</TableCell>
+                                <TableCell>{student.gender}</TableCell>
+                                <TableCell>{student.department}</TableCell>
+                                <TableCell className="max-w-xs truncate">{student.address || '-'}</TableCell>
+                                <TableCell>
+                                  <div className="flex flex-wrap gap-2">
+                                    {(studentViewFilter === 'active' || studentViewFilter === 'archived') && (
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => openStudentDialog(student)}
+                                        className="h-8 w-8 p-0"
+                                        title="Edit Student"
+                                      >
+                                        <Edit className="h-3 w-3" />
+                                      </Button>
+                                    )}
+                                    {studentViewFilter === 'active' && (
+                                      <>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => handleStudentArchive(student)}
+                                          className="h-8 w-8 p-0"
+                                          title="Archive Student"
+                                        >
+                                          <Archive className="h-3 w-3" />
+                                        </Button>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => handleStudentBin(student)}
+                                          className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                                          title="Move to Bin"
+                                        >
+                                          <Trash2 className="h-3 w-3" />
+                                        </Button>
+                                      </>
+                                    )}
+                                    {studentViewFilter === 'archived' && (
+                                      <>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => handleStudentUnarchive(student)}
+                                          className="h-8 w-8 p-0"
+                                          title="Unarchive Student"
+                                        >
+                                          <RefreshCw className="h-3 w-3" />
+                                        </Button>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => handleStudentBin(student)}
+                                          className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                                          title="Move to Bin"
+                                        >
+                                          <Trash2 className="h-3 w-3" />
+                                        </Button>
+                                      </>
+                                    )}
+                                    {studentViewFilter === 'binned' && (
+                                      <>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => handleStudentRestore(student)}
+                                          className="h-8 w-8 p-0"
+                                          title="Restore Student"
+                                        >
+                                          <RefreshCw className="h-3 w-3" />
+                                        </Button>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => setStudentToDelete(student)}
+                                          className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                                          title="Delete Permanently"
+                                        >
+                                          <Trash2 className="h-3 w-3" />
+                                        </Button>
+                                      </>
+                                    )}
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
 
               <DialogFooter className="gap-2">
@@ -1030,84 +1034,86 @@ export default function DepartmentManagement() {
               <DialogHeader>
                 <DialogTitle>{editingStudent ? 'Edit Student' : 'Add Student'}</DialogTitle>
               </DialogHeader>
-              <form onSubmit={saveStudent} className="space-y-4">
-                <div className="grid grid-cols-1 gap-4">
-                  <div>
-                    <Label htmlFor="student_id">Student ID</Label>
-                    <Input
-                      id="student_id"
-                      value={studentForm.student_id}
-                      onChange={(e) => setStudentForm(prev => ({ ...prev, student_id: e.target.value }))}
-                      placeholder="2024-00001"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="name">Name</Label>
-                    <Input
-                      id="name"
-                      value={studentForm.name}
-                      onChange={(e) => setStudentForm(prev => ({ ...prev, name: e.target.value }))}
-                      placeholder="Juan Dela Cruz"
-                      required
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6 pt-0 sm:pt-0">
+                <form onSubmit={saveStudent} className="space-y-4">
+                  <div className="grid grid-cols-1 gap-4">
                     <div>
-                      <Label htmlFor="age">Age</Label>
+                      <Label htmlFor="student_id">Student ID</Label>
                       <Input
-                        id="age"
-                        type="number"
-                        value={studentForm.age}
-                        onChange={(e) => setStudentForm(prev => ({ ...prev, age: Number(e.target.value) }))}
-                        min={15}
+                        id="student_id"
+                        value={studentForm.student_id}
+                        onChange={(e) => setStudentForm(prev => ({ ...prev, student_id: e.target.value }))}
+                        placeholder="2024-00001"
+                        required
                       />
                     </div>
                     <div>
-                      <Label htmlFor="gender">Gender</Label>
-                      <Select
-                        value={studentForm.gender}
-                        onValueChange={(value) => setStudentForm(prev => ({ ...prev, gender: value as 'Male' | 'Female' | 'Other' }))}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select gender" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Male">Male</SelectItem>
-                          <SelectItem value="Female">Female</SelectItem>
-                          <SelectItem value="Other">Other</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <Label htmlFor="name">Name</Label>
+                      <Input
+                        id="name"
+                        value={studentForm.name}
+                        onChange={(e) => setStudentForm(prev => ({ ...prev, name: e.target.value }))}
+                        placeholder="Juan Dela Cruz"
+                        required
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="age">Age</Label>
+                        <Input
+                          id="age"
+                          type="number"
+                          value={studentForm.age}
+                          onChange={(e) => setStudentForm(prev => ({ ...prev, age: Number(e.target.value) }))}
+                          min={15}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="gender">Gender</Label>
+                        <Select
+                          value={studentForm.gender}
+                          onValueChange={(value) => setStudentForm(prev => ({ ...prev, gender: value as 'Male' | 'Female' | 'Other' }))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select gender" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Male">Male</SelectItem>
+                            <SelectItem value="Female">Female</SelectItem>
+                            <SelectItem value="Other">Other</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div>
+                      <Label htmlFor="department">Department</Label>
+                      <Input
+                        id="department"
+                        value={studentForm.department}
+                        onChange={(e) => setStudentForm(prev => ({ ...prev, department: e.target.value }))}
+                        placeholder="Department"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="address">Address</Label>
+                      <Input
+                        id="address"
+                        value={studentForm.address}
+                        onChange={(e) => setStudentForm(prev => ({ ...prev, address: e.target.value }))}
+                        placeholder="123 Main St"
+                      />
                     </div>
                   </div>
-                  <div>
-                    <Label htmlFor="department">Department</Label>
-                    <Input
-                      id="department"
-                      value={studentForm.department}
-                      onChange={(e) => setStudentForm(prev => ({ ...prev, department: e.target.value }))}
-                      placeholder="Department"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="address">Address</Label>
-                    <Input
-                      id="address"
-                      value={studentForm.address}
-                      onChange={(e) => setStudentForm(prev => ({ ...prev, address: e.target.value }))}
-                      placeholder="123 Main St"
-                    />
-                  </div>
-                </div>
-                <DialogFooter className="gap-2">
-                  <Button type="button" variant="outline" onClick={() => setStudentDialogOpen(false)} className="w-full sm:w-auto">
-                    Cancel
-                  </Button>
-                  <Button type="submit" className="w-full sm:w-auto">
-                    {editingStudent ? 'Save Changes' : 'Add Student'}
-                  </Button>
-                </DialogFooter>
-              </form>
+                </form>
+              </div>
+              <DialogFooter className="gap-2">
+                <Button type="button" variant="outline" onClick={() => setStudentDialogOpen(false)} className="w-full sm:w-auto">
+                  Cancel
+                </Button>
+                <Button type="submit" onClick={saveStudent} className="w-full sm:w-auto">
+                  {editingStudent ? 'Save Changes' : 'Add Student'}
+                </Button>
+              </DialogFooter>
             </DialogContent>
           </Dialog>
 

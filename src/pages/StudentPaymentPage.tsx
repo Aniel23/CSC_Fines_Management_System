@@ -590,6 +590,7 @@ export default function StudentPaymentPage() {
                             className="rounded border-input h-4 w-4"
                           />
                         </TableHead>
+                        <TableHead className="w-[50px]">#</TableHead>
                         <TableHead>Date</TableHead>
                         <TableHead>Type of Violation</TableHead>
                         <TableHead>Amount</TableHead>
@@ -597,7 +598,7 @@ export default function StudentPaymentPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {toPayFines.map((fine) => (
+                      {toPayFines.map((fine, index) => (
                         <TableRow key={fine.id} className={selectedFines.includes(fine.id) ? "bg-primary/5" : ""}>
                           <TableCell>
                             <input
@@ -608,6 +609,7 @@ export default function StudentPaymentPage() {
                               className="rounded border-input h-4 w-4"
                             />
                           </TableCell>
+                          <TableCell className="font-medium text-muted-foreground">{index + 1}</TableCell>
                           <TableCell>
                             {new Date(fine.created_at).toLocaleDateString()}
                           </TableCell>

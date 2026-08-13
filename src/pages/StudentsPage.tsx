@@ -342,157 +342,159 @@ export default function StudentsPage() {
                   {editingStudent ? 'Edit Student' : 'Add New Student'}
                 </DialogTitle>
               </DialogHeader>
-              <Form {...form}>
-                <form
-                  onSubmit={form.handleSubmit(onSubmit)}
-                  className="space-y-4"
-                >
-                  {!editingStudent && (
-                    <div className="bg-primary/5 text-foreground p-3 rounded-md flex gap-2 text-sm border border-primary/20">
-                      <Info className="h-5 w-5 shrink-0" />
-                      <p>
-                        Adding a student here only creates their profile. 
-                        <strong> The student must go to the Register page</strong> to set their password and create their login account.
-                      </p>
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6 pt-0 sm:pt-0">
+                <Form {...form}>
+                  <form
+                    onSubmit={form.handleSubmit(onSubmit)}
+                    className="space-y-4"
+                  >
+                    {!editingStudent && (
+                      <div className="bg-primary/5 text-foreground p-3 rounded-md flex gap-2 text-sm border border-primary/20">
+                        <Info className="h-5 w-5 shrink-0" />
+                        <p>
+                          Adding a student here only creates their profile. 
+                          <strong> The student must go to the Register page</strong> to set their password and create their login account.
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="student_id"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Student ID</FormLabel>
+                            <FormControl>
+                              <Input placeholder="2024-00001" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="name"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Full Name</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Juan Dela Cruz" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                     </div>
-                  )}
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="student_id"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Student ID</FormLabel>
-                          <FormControl>
-                            <Input placeholder="2024-00001" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="name"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Full Name</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Juan Dela Cruz" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="age"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Age</FormLabel>
+                            <FormControl>
+                              <Input type="number" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="gender"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Gender</FormLabel>
+                            <Select
+                              onValueChange={field.onChange}
+                              defaultValue={field.value}
+                            >
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {genders.map((g) => (
+                                  <SelectItem key={g} value={g}>
+                                    {g}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
 
-                  <div className="grid grid-cols-2 gap-4">
                     <FormField
                       control={form.control}
-                      name="age"
+                      name="department"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Age</FormLabel>
-                          <FormControl>
-                            <Input type="number" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="gender"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Gender</FormLabel>
+                          <FormLabel>Department</FormLabel>
                           <Select
                             onValueChange={field.onChange}
                             defaultValue={field.value}
+                            value={field.value}
                           >
                             <FormControl>
                               <SelectTrigger>
-                                <SelectValue />
+                                <SelectValue placeholder="Select Department" />
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              {genders.map((g) => (
-                                <SelectItem key={g} value={g}>
-                                  {g}
-                                </SelectItem>
-                              ))}
+                              {loadingDepts ? (
+                                <div className="flex items-center justify-center py-2">
+                                  <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground mr-2" />
+                                  <span className="text-xs text-muted-foreground">Loading departments...</span>
+                                </div>
+                              ) : (
+                                dbDepartments.map((dept) => (
+                                  <SelectItem key={dept} value={dept}>
+                                    {dept}
+                                  </SelectItem>
+                                ))
+                              )}
                             </SelectContent>
                           </Select>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
-                  </div>
 
-                  <FormField
-                    control={form.control}
-                    name="department"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Department</FormLabel>
-                        <Select
-                          onValueChange={field.onChange}
-                          defaultValue={field.value}
-                          value={field.value}
-                        >
+                    <FormField
+                      control={form.control}
+                      name="address"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Address</FormLabel>
                           <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select Department" />
-                            </SelectTrigger>
+                            <Input placeholder="123 Main St, City" {...field} />
                           </FormControl>
-                          <SelectContent>
-                            {loadingDepts ? (
-                              <div className="flex items-center justify-center py-2">
-                                <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground mr-2" />
-                                <span className="text-xs text-muted-foreground">Loading departments...</span>
-                              </div>
-                            ) : (
-                              dbDepartments.map((dept) => (
-                                <SelectItem key={dept} value={dept}>
-                                  {dept}
-                                </SelectItem>
-                              ))
-                            )}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                  <FormField
-                    control={form.control}
-                    name="address"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Address</FormLabel>
-                        <FormControl>
-                          <Input placeholder="123 Main St, City" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <div className="flex justify-end gap-3 pt-4">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setIsDialogOpen(false)}
-                    >
-                      Cancel
-                    </Button>
-                    <Button type="submit">
-                      {editingStudent ? 'Update Student' : 'Add Student'}
-                    </Button>
-                  </div>
-                </form>
-              </Form>
+                    <div className="flex justify-end gap-3 pt-4">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setIsDialogOpen(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button type="submit">
+                        {editingStudent ? 'Update Student' : 'Add Student'}
+                      </Button>
+                    </div>
+                  </form>
+                </Form>
+              </div>
             </DialogContent>
           </Dialog>
         </div>
@@ -562,6 +564,7 @@ export default function StudentsPage() {
                   <Table>
                     <TableHeader>
                       <TableRow className="table-header">
+                        <TableHead className="w-[50px]">#</TableHead>
                         <TableHead>Student ID</TableHead>
                         <TableHead>Name</TableHead>
                         <TableHead>Age</TableHead>
@@ -572,8 +575,9 @@ export default function StudentsPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredStudents.map((student) => (
+                      {filteredStudents.map((student, index) => (
                         <TableRow key={student.id}>
+                          <TableCell className="font-medium text-muted-foreground">{index + 1}</TableCell>
                           <TableCell className="font-medium">
                             {student.student_id}
                           </TableCell>
