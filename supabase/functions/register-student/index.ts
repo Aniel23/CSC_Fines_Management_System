@@ -23,20 +23,24 @@ serve(async (req) => {
       }
     );
 
-    const { student_id, name, age, gender, department, email, password } = await req.json();
+    const { student_id, name, age, gender, department, department_id, address, email, password } = await req.json();
 
     if (!student_id || !name || !email || !password) {
       throw new Error("Missing required fields: student_id, name, email, password");
     }
 
-    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedStudentId = String(student_id).trim();
+    const normalizedName = String(name).trim().replace(/\s+/g, " ");
+    const normalizedDepartment = String(department || "").trim();
+    const normalizedAddress = address ? String(address).trim().replace(/\s+/g, " ") : null;
+    const normalizedEmail = String(email).trim().replace(/\s+/g, "").toLowerCase();
 
     // 1. Create the user in auth.users
     const { data: authData, error: authError } = await supabaseClient.auth.admin.createUser({
       email: normalizedEmail,
       password: password,
       email_confirm: true,
-      user_metadata: { name: name, role: 'student', student_id: student_id }
+      user_metadata: { name: normalizedName, role: 'student', student_id: normalizedStudentId }
     });
 
     if (authError) {
@@ -53,19 +57,20 @@ serve(async (req) => {
     // 2. Call the database function to create/link the student profile
     // Note: age, gender, department should be passed correctly
     const { error: dbError } = await supabaseClient.rpc("register_new_student", {
-      p_student_id: student_id,
-      p_name: name,
+      p_student_id: normalizedStudentId,
+      p_name: normalizedName,
       p_age: Number(age),
       p_gender: gender,
-      p_department: department,
+      p_department: normalizedDepartment,
       p_user_id: userId,
+      p_department_id: department_id || null,
+      p_address: normalizedAddress,
       p_email: normalizedEmail
     });
 
     if (dbError) {
       console.error("Error linking student profile:", dbError);
-      // Clean up the auth user if profile creation fails?
-      // await supabaseClient.auth.admin.deleteUser(userId);
+      await supabaseClient.auth.admin.deleteUser(userId);
       throw dbError;
     }
 

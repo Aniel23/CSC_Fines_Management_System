@@ -14,6 +14,10 @@ import { getPublicDepartments } from "@/integrations/supabase/queries";
 import { GENDERS as genders } from "@/lib/constants";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
+const normalizeWhitespace = (value: string) => value.trim().replace(/\s+/g, " ");
+const normalizeEmail = (value: string) => value.trim().replace(/\s+/g, "").toLowerCase();
+const namePattern = /^[\p{L}][\p{L}.' -]*$/u;
+
 export default function RegisterPage() {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
@@ -110,7 +114,7 @@ export default function RegisterPage() {
         toast.info("New student ID detected. Please fill in your details.");
         setStep("register");
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Check failed:", error);
       toast.error("Failed to verify Student ID. Please try again.");
     } finally {
@@ -120,6 +124,20 @@ export default function RegisterPage() {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const normalizedName = normalizeWhitespace(name);
+    const normalizedAddress = normalizeWhitespace(address);
+    const normalizedEmail = normalizeEmail(email);
+
+    if (!existingStudent && (!normalizedName || normalizedName.length > 255 || !namePattern.test(normalizedName))) {
+      toast.error("Please enter a valid name using letters, spaces, apostrophes, periods, or hyphens");
+      return;
+    }
+
+    if (!existingStudent && (!normalizedAddress || normalizedAddress.length > 500)) {
+      toast.error("Please enter a valid address up to 500 characters");
+      return;
+    }
     
     if (password.length < 6) {
       toast.error("Password must be at least 6 characters");
@@ -131,7 +149,7 @@ export default function RegisterPage() {
       return;
     }
 
-    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail) || normalizedEmail.length > 255) {
       toast.error("Please enter a valid email address");
       return;
     }
@@ -144,56 +162,40 @@ export default function RegisterPage() {
     }
     setRegistering(true);
     try {
-      // 1. Create Auth User
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: email.trim().toLowerCase(),
-        password,
-        options: {
-          data: {
-            name: existingStudent ? existingStudent.name : name.trim(),
-            student_id: studentId.trim(),
-            role: "student",
-          },
+      // Create the auth user and profile together in the Edge Function so a
+      // failed profile write cannot leave an unusable auth account behind.
+      const { data: registrationData, error: registrationError } = await supabase.functions.invoke("register-student", {
+        body: {
+          student_id: studentId.trim(),
+          name: existingStudent ? existingStudent.name : normalizedName,
+          age: existingStudent ? 0 : Number(age),
+          gender: existingStudent ? "Male" : gender,
+          department: existingStudent ? "" : departmentName,
+          department_id: existingStudent ? null : departmentId,
+          address: existingStudent ? null : normalizedAddress,
+          email: normalizedEmail,
+          password,
         },
       });
 
-      if (authError) {
-        const msg = authError.message?.toLowerCase() || "";
+      if (registrationError) {
+        const msg = registrationError.message?.toLowerCase() || "";
         if (msg.includes("already") || msg.includes("registered") || msg.includes("exists")) {
           toast.error("This account is already registered. Please sign in instead.");
           setAlreadyRegisteredOpen(true);
           setStep("check");
           return;
         }
-        throw authError;
+        throw registrationError;
       }
 
-      if (!authData.user) throw new Error("Registration failed");
-
-      // 2. Register student record + user_role via RPC
-      // Pass both the display name (p_department) and the FK (p_department_id)
-      const { error: rpcError } = await supabase.rpc('register_new_student', {
-        p_student_id:    studentId.trim(),
-        p_name:          existingStudent ? existingStudent.name : name.trim(),
-        p_age:           existingStudent ? 0 : Number(age),
-        p_gender:        existingStudent ? 'Male' : gender,
-        p_department:    existingStudent ? '' : departmentName,
-        p_user_id:       authData.user.id,
-        p_department_id: existingStudent ? null : departmentId,
-        p_address:       existingStudent ? null : (address.trim() || null),
-        p_email:         email.trim().toLowerCase(),
-      });
-
-      if (rpcError) {
-        console.error("Registration RPC error:", rpcError);
-        throw rpcError;
-      }
+      if (!registrationData?.user) throw new Error("Registration failed");
 
       toast.success("Registration successful! Please sign in.");
       navigate("/");
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Registration error:", error);
-      toast.error(error.message || "Failed to register. Please try again.");
+      toast.error(error instanceof Error ? error.message : "Failed to register. Please try again.");
     } finally {
       setRegistering(false);
     }
@@ -346,7 +348,7 @@ export default function RegisterPage() {
                         <Input
                           value={address}
                           onChange={(e) => setAddress(e.target.value)}
-                          placeholder="123 Main St, City"
+                          placeholder="123 Main Street, Barangay, City"
                           className="mt-2 bg-background/50"
                           required
                         />
@@ -360,7 +362,7 @@ export default function RegisterPage() {
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="you@example.com"
+                      placeholder="juan.delacruz@example.com"
                       className="mt-2 bg-background/50"
                       required
                     />
