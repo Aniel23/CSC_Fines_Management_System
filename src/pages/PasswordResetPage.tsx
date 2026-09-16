@@ -73,15 +73,26 @@ export default function PasswordResetPage() {
     }
 
     setSaving(true);
-    const { error } = await supabase.auth.updateUser({ password });
-    setSaving(false);
-    if (error) {
-      toast.error(error.message);
-      return;
+    try {
+      const updateRequest = supabase.auth.updateUser({ password });
+      const timeout = new Promise<{ error: Error }>((resolve) => {
+        window.setTimeout(() => resolve({ error: new Error("Password update timed out. Please request a new reset link and try again.") }), 15000);
+      });
+      const { error } = await Promise.race([updateRequest, timeout]);
+
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+
+      toast.success("Password updated successfully");
+      void supabase.auth.signOut();
+      navigate("/", { replace: true });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update password");
+    } finally {
+      setSaving(false);
     }
-    toast.success("Password updated successfully");
-    await supabase.auth.signOut();
-    navigate("/", { replace: true });
   };
 
   return (

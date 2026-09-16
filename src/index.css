@@ -119,9 +119,21 @@
     @apply border-border;
   }
 
+  html,
+  body,
+  #root {
+    min-height: 100%;
+    width: 100%;
+  }
+
+  html {
+    overflow-x: hidden;
+  }
+
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'Inter', sans-serif;
+    overflow-x: hidden;
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -136,7 +148,8 @@
   }
 
   .content-wrapper {
-    @apply w-full max-w-[98%] mx-auto px-4 sm:px-6 lg:px-8 py-8;
+    @apply w-full max-w-[98%] mx-auto px-3 sm:px-5 lg:px-8 py-6 sm:py-8;
+    min-width: 0;
   }
 
   .card-elevated {

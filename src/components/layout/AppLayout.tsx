@@ -63,7 +63,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   };
 
   return (
-    <div className="h-screen flex w-full bg-background overflow-hidden relative">
+    <div className="h-[100dvh] min-h-screen flex w-full min-w-0 bg-background overflow-hidden relative">
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 z-0"
@@ -97,7 +97,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         onRequestSignOut={requestSignOut}
       />
 
-      <div className="flex-1 min-h-screen flex flex-col pt-14 md:pt-0 relative z-10 md:ml-72">
+      <div className="flex-1 min-w-0 min-h-screen flex flex-col pt-14 md:pt-0 relative z-10 md:ml-72">
         <header className="md:hidden fixed top-0 left-0 right-0 z-40 w-full flex items-center justify-between px-4 py-3 border-b border-border bg-background/80 backdrop-blur-md">
           <button
             aria-label="Toggle menu"
@@ -107,14 +107,14 @@ export function AppLayout({ children }: AppLayoutProps) {
           >
             <Menu className="h-5 w-5" />
           </button>
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2 px-1">
             <img
               src="/csc-logo.png"
               alt="CSC Logo"
               className="h-7 w-7 rounded-sm shadow-sm bg-card p-[2px]"
               onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/csc-logo.jpg'; }}
             />
-            <div className="text-lg font-bold text-foreground">CSC Fines Management</div>
+            <div className="min-w-0 truncate text-sm font-bold text-foreground sm:text-lg">CSC Fines Management</div>
           </div>
           <div className="flex items-center gap-2">
             <NotificationsMenu />
@@ -166,7 +166,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           </div>
         </header>
 
-        <main className="flex-1 overflow-auto p-4 md:p-6 bg-muted/30">
+        <main className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto p-3 sm:p-4 md:p-6 bg-muted/30">
           {children}
         </main>
         <Dialog open={showSignOutModal} onOpenChange={setShowSignOutModal}>
