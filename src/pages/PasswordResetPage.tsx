@@ -12,10 +12,53 @@ export default function PasswordResetPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [saving, setSaving] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setReady(Boolean(data.session)));
+    let active = true;
+
+    const checkRecoverySession = async () => {
+      const url = new URL(window.location.href);
+      const code = url.searchParams.get("code");
+      const tokenHash = url.searchParams.get("token_hash");
+      const type = url.searchParams.get("type");
+
+      if (code) {
+        await supabase.auth.exchangeCodeForSession(code);
+      } else if (tokenHash && type === "recovery") {
+        await supabase.auth.verifyOtp({ type: "recovery", token_hash: tokenHash });
+      }
+
+      const { data, error } = await supabase.auth.getSession();
+      if (!active) return;
+
+      setReady(Boolean(data.session) && !error);
+      setCheckingSession(false);
+    };
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!active) return;
+
+      if (event === "PASSWORD_RECOVERY" || session) {
+        setReady(Boolean(session));
+        setCheckingSession(false);
+      }
+    });
+
+    checkRecoverySession().catch(() => {
+      if (active) setCheckingSession(false);
+    });
+
+    const timeout = window.setTimeout(() => {
+      if (active) setCheckingSession(false);
+    }, 5000);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timeout);
+      authListener.subscription.unsubscribe();
+    };
   }, []);
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -48,8 +91,15 @@ export default function PasswordResetPage() {
           <CardTitle>Set a new password</CardTitle>
         </CardHeader>
         <CardContent>
-          {!ready ? (
-            <p className="text-sm text-muted-foreground">This reset link is invalid or has expired.</p>
+          {checkingSession ? (
+            <p className="text-sm text-muted-foreground">Verifying your reset link...</p>
+          ) : !ready ? (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">This reset link is invalid or has expired.</p>
+              <Button type="button" variant="outline" onClick={() => navigate("/")}>
+                Return to login
+              </Button>
+            </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">

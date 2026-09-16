@@ -148,6 +148,13 @@ export default function RegisterPage() {
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: email.trim().toLowerCase(),
         password,
+        options: {
+          data: {
+            name: existingStudent ? existingStudent.name : name.trim(),
+            student_id: studentId.trim(),
+            role: "student",
+          },
+        },
       });
 
       if (authError) {
