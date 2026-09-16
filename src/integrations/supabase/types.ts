@@ -119,6 +119,8 @@ export type Database = {
           created_at: string
           deleted_at: string | null
           department: string
+          department_id: string | null
+          email: string | null
           gender: Database["public"]["Enums"]["gender_type"]
           id: string
           is_archived: boolean | null
@@ -133,6 +135,8 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           department: string
+          department_id?: string | null
+          email?: string | null
           gender: Database["public"]["Enums"]["gender_type"]
           id?: string
           is_archived?: boolean | null
@@ -147,6 +151,8 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           department?: string
+          department_id?: string | null
+          email?: string | null
           gender?: Database["public"]["Enums"]["gender_type"]
           id?: string
           is_archived?: boolean | null
@@ -155,7 +161,15 @@ export type Database = {
           student_id?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "students_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       transactions: {
         Row: {
@@ -304,6 +318,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_student_auth_email: { Args: { p_student_id: string }; Returns: string | null }
       get_user_student_id: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {

@@ -6,9 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Info, Loader2, Eye, EyeOff } from "lucide-react";
+import { Info, Loader2, Eye, EyeOff, KeyRound, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { PublicNavbar } from "@/components/layout/PublicNavbar";
+import { supabase } from "@/integrations/supabase/client";
 import {
   Dialog,
   DialogContent,
@@ -25,6 +26,8 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [remember, setRemember] = useState(false);
   const [showForgotPasswordDialog, setShowForgotPasswordDialog] = useState(false);
+  const [recoveryEmail, setRecoveryEmail] = useState("");
+  const [sendingRecovery, setSendingRecovery] = useState(false);
   const [isDark, setIsDark] = useState<boolean>(() => {
     try {
       return document.documentElement.classList.contains("dark");
@@ -66,17 +69,15 @@ export default function LoginPage() {
         return;
       }
       try {
-        await login(identifier, password);
+        const role = await login(identifier, password);
         toast.success("Signed in");
-        console.log("[Login] Admin login successful, navigating to /dashboard");
-        navigate("/dashboard");
+        navigate(role === "student" ? "/student-dashboard" : "/dashboard");
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : "Sign in failed";
         toast.error(msg);
       }
     } else if (isStudentEmail) {
-      // Student login with email like "2024-0214@student.local"
-      // Extract student ID from the email
+      // Legacy student accounts used the synthetic student.local address.
       const studentIdFromEmail = identifier.replace("@student.local", "");
       if (!password) {
         toast.error("Password is required for student login");
@@ -237,21 +238,86 @@ export default function LoginPage() {
       </div>
 
       <Dialog open={showForgotPasswordDialog} onOpenChange={setShowForgotPasswordDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Reset Password</DialogTitle>
-            <DialogDescription>
-              To ensure account security, please contact the administrator to reset your password.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setShowForgotPasswordDialog(false)}>
-              Cancel
-            </Button>
-            <Button onClick={() => navigate("/contact-admin")}>
-              Contact Admin
-            </Button>
-          </DialogFooter>
+        <DialogContent className="sm:max-w-md p-0 overflow-hidden">
+          <div className="bg-primary/10 px-6 py-5 border-b border-border">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
+                <KeyRound className="h-5 w-5" />
+              </div>
+              <DialogHeader className="space-y-1 text-left">
+                <DialogTitle className="text-xl">Reset your password</DialogTitle>
+                <DialogDescription>
+                  We will send a secure reset link to your account email.
+                </DialogDescription>
+              </DialogHeader>
+            </div>
+          </div>
+
+          <div className="space-y-5 px-6 py-6">
+            <div className="space-y-2">
+              <Label htmlFor="recovery-email" className="text-sm font-medium">
+                Account email
+              </Label>
+              <div className="relative">
+                <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  id="recovery-email"
+                  type="email"
+                  placeholder="you@example.com"
+                  value={recoveryEmail}
+                  onChange={(e) => setRecoveryEmail(e.target.value)}
+                  disabled={sendingRecovery}
+                  autoComplete="email"
+                  className="h-11 pl-10"
+                />
+              </div>
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                Use the email you entered during registration.
+              </p>
+            </div>
+
+            <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowForgotPasswordDialog(false)}
+                disabled={sendingRecovery}
+                className="w-full sm:w-auto"
+              >
+                Cancel
+              </Button>
+              <Button
+                disabled={sendingRecovery}
+                className="w-full sm:w-auto"
+                onClick={async () => {
+                  if (!recoveryEmail.trim()) {
+                    toast.error("Please enter your email address");
+                    return;
+                  }
+                  setSendingRecovery(true);
+                  const { error } = await supabase.auth.resetPasswordForEmail(recoveryEmail.trim().toLowerCase(), {
+                    redirectTo: `${window.location.origin}/reset-password`,
+                  });
+                  setSendingRecovery(false);
+                  if (error) {
+                    toast.error(error.message);
+                    return;
+                  }
+                  toast.success("Password reset link sent. Check your email.");
+                  setShowForgotPasswordDialog(false);
+                }}
+              >
+                {sendingRecovery ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Sending link...
+                  </>
+                ) : (
+                  "Send reset link"
+                )}
+              </Button>
+            </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
       

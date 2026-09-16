@@ -1,11 +1,15 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { normalizeDepartmentKey } from "@/integrations/supabase/queries";
 import type { Student } from "@/types";
 
 export type StudentsFilter = 'active' | 'archived' | 'binned' | 'all';
 
-export function useStudents(department?: string, filter: StudentsFilter = 'active') {
+/**
+ * @param departmentId - UUID from departments.id. When provided, only students
+ *   whose department_id FK matches are returned. Filtering is done server-side.
+ * @param filter - Row visibility filter (active/archived/binned/all).
+ */
+export function useStudents(departmentId?: string, filter: StudentsFilter = 'active') {
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -19,6 +23,7 @@ export function useStudents(department?: string, filter: StudentsFilter = 'activ
         .select("*")
         .order("student_id");
 
+      // Visibility filter
       if (filter === 'active') {
         query = query.is("deleted_at", null).eq("is_archived", false);
       } else if (filter === 'archived') {
@@ -27,17 +32,16 @@ export function useStudents(department?: string, filter: StudentsFilter = 'activ
         query = query.not("deleted_at", "is", null);
       }
 
+      // Department filter — exact FK match, pushed to DB (no client-side fuzzy logic)
+      if (departmentId?.trim()) {
+        query = query.eq("department_id", departmentId.trim());
+      }
+
       const { data, error: fetchError } = await query;
 
       if (fetchError) throw fetchError;
 
-      const allStudents = (data || []) as Student[];
-      const selectedDepartment = department?.trim();
-      const filteredStudents = selectedDepartment
-        ? allStudents.filter((student) => (student.department || '').trim().toLowerCase() === selectedDepartment.toLowerCase())
-        : allStudents;
-
-      setStudents(filteredStudents);
+      setStudents((data || []) as Student[]);
       setError(null);
     } catch (err) {
       console.error("Error fetching students:", err);
@@ -46,7 +50,7 @@ export function useStudents(department?: string, filter: StudentsFilter = 'activ
     } finally {
       setLoading(false);
     }
-  }, [department, filter]);
+  }, [departmentId, filter]);
 
   useEffect(() => {
     fetchStudents();
@@ -55,20 +59,12 @@ export function useStudents(department?: string, filter: StudentsFilter = 'activ
       .channel('students-changes')
       .on(
         'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'students'
-        },
-        () => {
-          fetchStudents();
-        }
+        { event: '*', schema: 'public', table: 'students' },
+        () => { fetchStudents(); }
       )
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [fetchStudents, filter]);
 
   return { students, loading, error, refetch: fetchStudents };

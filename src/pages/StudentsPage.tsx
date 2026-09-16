@@ -50,13 +50,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Search, Loader, Edit, Trash2, Check, Archive, RefreshCw, Trash2 as TrashIcon, Info, AlertTriangle } from "lucide-react";
+import { Plus, Search, Loader, Edit, Trash2, Check, Archive, RefreshCw, Trash2 as TrashIcon, Info, AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react";
 import { useStudents } from "@/hooks/useStudents";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { getUniqueStudentDepartments, getDepartments, deleteStudent, binStudent, restoreStudent, archiveStudent, unarchiveStudent } from "@/integrations/supabase/queries";
-import { DEFAULT_DEPARTMENTS, GENDERS as genders } from "@/lib/constants";
+import { getPublicDepartments, deleteStudent, binStudent, restoreStudent, archiveStudent, unarchiveStudent } from "@/integrations/supabase/queries";
+import { GENDERS as genders } from "@/lib/constants";
 import type { Student } from "@/types";
+
+const PAGE_SIZE = 30;
 
 const studentSchema = z.object({
   student_id: z.string().min(1, "Student ID is required").max(20),
@@ -76,48 +78,28 @@ export default function StudentsPage() {
   const [viewFilter, setViewFilter] = useState<"active" | "archived" | "binned">("active");
   const { students: fetchedStudents, loading: studentsLoading, error: studentsError } = useStudents(selectedDepartment, viewFilter);
    const [search, setSearch] = useState("");
+   const [currentPage, setCurrentPage] = useState(1);
    const [isDialogOpen, setIsDialogOpen] = useState(false);
    const [editingStudent, setEditingStudent] = useState<Student | null>(null);
    const [students, setStudents] = useState<Student[]>(fetchedStudents);
-   const [dbDepartments, setDbDepartments] = useState<string[]>([]);
+   const [dbDepartments, setDbDepartments] = useState<{ id: string; name: string }[]>([]);
    const [loadingDepts, setLoadingDepts] = useState(false);
    const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
 
-  // Load unique departments from both students table and departments table
+  // Load departments from DB
   useEffect(() => {
     const loadDepartments = async () => {
       try {
         setLoadingDepts(true);
-        
-        // Fetch unique departments from students table
-        const uniqueDepts = await getUniqueStudentDepartments();
-        
-        // Fetch from departments table to ensure all listed departments are included
-        const deptsFromTable = await getDepartments();
-        const tableDeptNames = deptsFromTable.map((d: any) => d.name);
-        
-        // Use only departments from the database if available
-        if (tableDeptNames.length > 0) {
-          const uniqueDepts = Array.from(new Set(tableDeptNames))
-            .filter(Boolean)
-            .sort();
-          setDbDepartments(uniqueDepts);
-        } else {
-          // Fallback to existing students' departments if table is empty
-          const uniqueDepts = await getUniqueStudentDepartments();
-          const combinedDepts = Array.from(new Set([...uniqueDepts, ...DEFAULT_DEPARTMENTS]))
-            .filter(Boolean)
-            .sort();
-          setDbDepartments(combinedDepts);
-        }
+        const depts = await getPublicDepartments();
+        setDbDepartments(depts);
       } catch (error) {
         console.error("Error loading departments:", error);
-        setDbDepartments(DEFAULT_DEPARTMENTS); // Fallback
+        setDbDepartments([]);
       } finally {
         setLoadingDepts(false);
       }
     };
-
     loadDepartments();
   }, []);
 
@@ -143,7 +125,7 @@ export default function StudentsPage() {
         age: editingStudent.age,
         address: editingStudent.address || "",
         gender: editingStudent.gender,
-        department: editingStudent.department,
+        department: editingStudent.department_id || "",
       });
     }
   }, [editingStudent, form]);
@@ -155,21 +137,29 @@ export default function StudentsPage() {
 
   // Calculate filtered students BEFORE any conditional returns
   const filteredStudents = useMemo(() => {
-    return students.filter(
-      (student) => {
-        const matchesSearch =
-          student.name.toLowerCase().includes(search.toLowerCase()) ||
-          student.student_id.toLowerCase().includes(search.toLowerCase());
-        const matchesDepartment = !selectedDepartment || student.department === selectedDepartment;
-        return matchesSearch && matchesDepartment;
-      }
+    return students.filter((student) =>
+      student.name.toLowerCase().includes(search.toLowerCase()) ||
+      student.student_id.toLowerCase().includes(search.toLowerCase())
     );
-  }, [students, search, selectedDepartment]);
+  }, [students, search]);
+
+  // Reset to page 1 whenever the list changes due to search or tab switch
+  useEffect(() => { setCurrentPage(1); }, [search, viewFilter, selectedDepartment]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredStudents.length / PAGE_SIZE));
+  const pagedStudents = filteredStudents.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
+  );
 
   const onSubmit = async (data: StudentFormValues) => {
+    // data.department holds the department UUID (from the Select)
+    const selectedDept = dbDepartments.find(d => d.id === data.department);
+    const deptName = selectedDept?.name ?? data.department ?? "";
+    const deptId = selectedDept?.id ?? null;
+
     try {
       if (editingStudent) {
-        // Update existing student
         const { error } = await supabase
           .from("students")
           .update({
@@ -178,7 +168,8 @@ export default function StudentsPage() {
             age: data.age,
             address: data.address || null,
             gender: data.gender,
-            department: data.department,
+            department: deptName,
+            department_id: deptId,
           })
           .eq("id", editingStudent.id)
           .select()
@@ -190,12 +181,14 @@ export default function StudentsPage() {
           return;
         }
 
-        // Update local state
-        setStudents(students.map(s => s.id === editingStudent.id ? { ...s, department: data.department } : s));
+        setStudents(students.map(s =>
+          s.id === editingStudent.id
+            ? { ...s, department: deptName, department_id: deptId }
+            : s
+        ));
         toast.success("Student updated successfully");
         setEditingStudent(null);
       } else {
-        // Insert new student
         const { data: newStudentData, error } = await supabase
           .from("students")
           .insert({
@@ -204,7 +197,8 @@ export default function StudentsPage() {
             age: data.age,
             address: data.address || null,
             gender: data.gender,
-            department: data.department,
+            department: deptName,
+            department_id: deptId,
           })
           .select()
           .single();
@@ -321,12 +315,19 @@ export default function StudentsPage() {
       <div className="content-wrapper">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
           <div>
-            <h1 className="font-display text-3xl font-bold text-foreground">
-              Students {selectedDepartment && `- ${selectedDepartment}`}
-            </h1>
-            <p className="text-muted-foreground mt-1">
-              {selectedDepartment ? `Students in ${selectedDepartment} department` : "Manage student information"}
-            </p>
+            {(() => {
+              const deptName = dbDepartments.find(d => d.id === selectedDepartment)?.name ?? selectedDepartment;
+              return (
+                <>
+                  <h1 className="font-display text-3xl font-bold text-foreground">
+                    Students {deptName && `- ${deptName}`}
+                  </h1>
+                  <p className="text-muted-foreground mt-1">
+                    {deptName ? `Students in ${deptName} department` : "Manage student information"}
+                  </p>
+                </>
+              );
+            })()}
           </div>
 
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -454,8 +455,8 @@ export default function StudentsPage() {
                                 </div>
                               ) : (
                                 dbDepartments.map((dept) => (
-                                  <SelectItem key={dept} value={dept}>
-                                    {dept}
+                                  <SelectItem key={dept.id} value={dept.id}>
+                                    {dept.name}
                                   </SelectItem>
                                 ))
                               )}
@@ -539,7 +540,13 @@ export default function StudentsPage() {
         {/* Students Table */}
         <Card className="card-elevated">
           <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <CardTitle className="font-display">Student List</CardTitle>
+            <div>
+              <CardTitle className="font-display">Student List</CardTitle>
+              <p className="text-sm text-muted-foreground mt-1">
+                {filteredStudents.length} student{filteredStudents.length !== 1 ? "s" : ""}
+                {filteredStudents.length > 0 && ` — page ${currentPage} of ${totalPages}`}
+              </p>
+            </div>
             <Tabs value={viewFilter} onValueChange={(v: any) => setViewFilter(v)} className="w-full sm:w-auto">
               <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="active">Active</TabsTrigger>
@@ -559,6 +566,7 @@ export default function StudentsPage() {
             )}
 
             {filteredStudents.length > 0 ? (
+              <>
               <div className="overflow-x-auto">
                 <div className="hidden md:block">
                   <Table>
@@ -575,9 +583,9 @@ export default function StudentsPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredStudents.map((student, index) => (
+                      {pagedStudents.map((student, index) => (
                         <TableRow key={student.id}>
-                          <TableCell className="font-medium text-muted-foreground">{index + 1}</TableCell>
+                          <TableCell className="font-medium text-muted-foreground">{(currentPage - 1) * PAGE_SIZE + index + 1}</TableCell>
                           <TableCell className="font-medium">
                             {student.student_id}
                           </TableCell>
@@ -675,7 +683,7 @@ export default function StudentsPage() {
                 </div>
 
                 <div className="md:hidden space-y-3">
-                  {filteredStudents.map((student) => (
+                  {pagedStudents.map((student) => (
                     <div key={student.id} className="card-elevated p-4">
                       <div className="flex items-start justify-between">
                         <div>
@@ -776,6 +784,58 @@ export default function StudentsPage() {
                   ))}
                 </div>
               </div>
+
+              {/* Pagination controls */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between pt-4 border-t border-border mt-4">
+                  <p className="text-sm text-muted-foreground">
+                    Showing {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filteredStudents.length)} of {filteredStudents.length}
+                  </p>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 w-8 p-0"
+                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    {Array.from({ length: totalPages }, (_, i) => i + 1)
+                      .filter((p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+                      .reduce<(number | "...")[]>((acc, p, idx, arr) => {
+                        if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push("...");
+                        acc.push(p);
+                        return acc;
+                      }, [])
+                      .map((item, idx) =>
+                        item === "..." ? (
+                          <span key={`ellipsis-${idx}`} className="px-1 text-muted-foreground text-sm">…</span>
+                        ) : (
+                          <Button
+                            key={item}
+                            variant={currentPage === item ? "default" : "outline"}
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={() => setCurrentPage(item as number)}
+                          >
+                            {item}
+                          </Button>
+                        )
+                      )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 w-8 p-0"
+                      onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+              </>
             ) : (
               <div className="text-center py-10 text-muted-foreground">
                 No students found. Add your first student to get started.

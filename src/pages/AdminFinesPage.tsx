@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { AlertCircle, CheckCircle, Filter, Loader, RotateCw, Search, Eye, ExternalLink, AlertTriangle, Trash2, X } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import { useFines } from "@/hooks/useFines";
 import { useStudents } from "@/hooks/useStudents";
@@ -48,6 +48,8 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Archive, Trash2 as TrashIcon, RefreshCw } from "lucide-react";
 import { binFine, restoreFine, archiveFine, unarchiveFine } from "@/integrations/supabase/queries";
+import { usePagination } from "@/hooks/usePagination";
+import { PaginationBar } from "@/components/shared/PaginationBar";
 
 export default function AdminFinesPage() {
   const [viewFilter, setViewFilter] = useState<"active" | "archived">("active");
@@ -351,39 +353,6 @@ export default function AdminFinesPage() {
     }
   };
 
-  if (finesLoading || studentsLoading) {
-    return (
-      <AppLayout>
-        <div className="content-wrapper pt-0 flex items-center justify-center min-h-96">
-          <div className="flex flex-col items-center gap-3">
-            <Loader className="h-8 w-8 animate-spin text-primary" />
-            <p className="text-muted-foreground">Loading fines data...</p>
-          </div>
-        </div>
-      </AppLayout>
-    );
-  }
-
-  // Check if there was a serious error loading data
-  if (finesError || studentsError) {
-    return (
-      <AppLayout>
-        <div className="content-wrapper pt-0">
-          <Card className="border-destructive/50 bg-destructive/5">
-            <CardHeader>
-              <CardTitle className="text-destructive">Error Loading Data</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-destructive/80">
-                {finesError || studentsError}
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-      </AppLayout>
-    );
-  }
-
   // Filter fines for the table based on viewFilter
   const finesForTable = allFines.filter(f => {
     if (viewFilter === 'active') return !f.deleted_at && !f.is_archived;
@@ -434,6 +403,41 @@ export default function AdminFinesPage() {
   const filteredBalance = filteredFines.reduce((sum, f) => sum + Number(f.balance || 0), 0);
   const filteredPending = filteredFines.filter((f) => f.status === "Pending").length;
   const filteredToPay = filteredFines.filter((f) => f.status === "To Pay" || (f.status !== "Paid" && f.status !== "Pending")).length;
+
+  const { paged: pagedFines, currentPage, setCurrentPage, totalPages, pageSize } = usePagination(filteredFines);
+
+  if (finesLoading || studentsLoading) {
+    return (
+      <AppLayout>
+        <div className="content-wrapper pt-0 flex items-center justify-center min-h-96">
+          <div className="flex flex-col items-center gap-3">
+            <Loader className="h-8 w-8 animate-spin text-primary" />
+            <p className="text-muted-foreground">Loading fines data...</p>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  // Check if there was a serious error loading data
+  if (finesError || studentsError) {
+    return (
+      <AppLayout>
+        <div className="content-wrapper pt-0">
+          <Card className="border-destructive/50 bg-destructive/5">
+            <CardHeader>
+              <CardTitle className="text-destructive">Error Loading Data</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-destructive/80">
+                {finesError || studentsError}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout>
@@ -631,9 +635,9 @@ export default function AdminFinesPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredFines.map((fine, index) => (
+                      {pagedFines.map((fine, index) => (
                         <TableRow key={fine.id}>
-                          <TableCell className="font-medium text-muted-foreground">{index + 1}</TableCell>
+                          <TableCell className="font-medium text-muted-foreground">{(currentPage - 1) * pageSize + index + 1}</TableCell>
                           <TableCell className="font-medium">
                             {fine.student?.student_id}
                           </TableCell>
@@ -853,7 +857,7 @@ export default function AdminFinesPage() {
 
                 {/* Mobile view */}
                 <div className="md:hidden space-y-4">
-                  {filteredFines.map((fine) => (
+                  {pagedFines.map((fine) => (
                     <Card key={fine.id} className="border">
                       <CardContent className="pt-6">
                         <div className="space-y-3">
@@ -1012,6 +1016,13 @@ export default function AdminFinesPage() {
                 </p>
               </div>
             )}
+            <PaginationBar
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={filteredFines.length}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+            />
           </CardContent>
         </Card>
 

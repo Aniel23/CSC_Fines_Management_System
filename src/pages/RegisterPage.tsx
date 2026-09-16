@@ -10,8 +10,8 @@ import { Loader2, ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { PublicNavbar } from "@/components/layout/PublicNavbar";
 import { supabase } from "@/integrations/supabase/client";
-import { getDepartments } from "@/integrations/supabase/queries";
-import { DEFAULT_DEPARTMENTS, GENDERS as genders } from "@/lib/constants";
+import { getPublicDepartments } from "@/integrations/supabase/queries";
+import { GENDERS as genders } from "@/lib/constants";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export default function RegisterPage() {
@@ -25,6 +25,7 @@ export default function RegisterPage() {
   
   // Form State
   const [studentId, setStudentId] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -34,37 +35,26 @@ export default function RegisterPage() {
   const [name, setName] = useState("");
   const [age, setAge] = useState<number | "">("");
   const [gender, setGender] = useState<string>("Male");
-  const [department, setDepartment] = useState<string>("");
+  const [address, setAddress] = useState<string>("");
+  // departmentId = departments.id (UUID), departmentName = departments.name (display)
+  const [departmentId, setDepartmentId] = useState<string>("");
+  const [departmentName, setDepartmentName] = useState<string>("");
   
   // Found Student State
   const [existingStudent, setExistingStudent] = useState<{ id: string, name: string } | null>(null);
   
-  // Data Options
-  const [dbDepartments, setDbDepartments] = useState<string[]>([]);
+  // Departments from DB: {id, name}[]
+  const [dbDepartments, setDbDepartments] = useState<{ id: string; name: string }[]>([]);
 
-  // Load departments
+  // Load departments from DB
   useEffect(() => {
     const loadDepartments = async () => {
       try {
-        const depts = await getDepartments();
-        const deptNames = depts.map((d: any) => d.name);
-        
-        // Use only departments from the database if available
-        if (deptNames.length > 0) {
-          const uniqueDepts = Array.from(new Set(deptNames))
-            .filter(Boolean)
-            .sort();
-          setDbDepartments(uniqueDepts);
-        } else {
-          // Fallback to default departments if table is empty
-          const uniqueDepts = Array.from(new Set(DEFAULT_DEPARTMENTS))
-            .filter(Boolean)
-            .sort();
-          setDbDepartments(uniqueDepts);
-        }
+        const depts = await getPublicDepartments();
+        setDbDepartments(depts);
       } catch (error) {
         console.error("Failed to load departments", error);
-        setDbDepartments(DEFAULT_DEPARTMENTS);
+        setDbDepartments([]);
       }
     };
     loadDepartments();
@@ -141,48 +131,50 @@ export default function RegisterPage() {
       return;
     }
 
+    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      toast.error("Please enter a valid email address");
+      return;
+    }
+
     if (!existingStudent) {
-      if (!name || !age || !department) {
+      if (!name || !age || !departmentId || !address.trim()) {
         toast.error("Please fill in all required fields");
         return;
       }
     }
-
     setRegistering(true);
     try {
-      const email = `${studentId.trim()}@student.local`;
-      let studentRecordId = existingStudent?.id;
-
-      // 1. Attempt to create Auth User first to detect existing accounts early
+      // 1. Create Auth User
       const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
+        email: email.trim().toLowerCase(),
         password,
       });
 
       if (authError) {
         const msg = authError.message?.toLowerCase() || "";
-        
-        // Check for various "already exists" messages
         if (msg.includes("already") || msg.includes("registered") || msg.includes("exists")) {
           toast.error("This account is already registered. Please sign in instead.");
           setAlreadyRegisteredOpen(true);
           setStep("check");
           return;
         }
-        
         throw authError;
       }
 
       if (!authData.user) throw new Error("Registration failed");
 
-      // 2. Register Student Record and Link User Role using RPC (handles RLS safely)
+      // 2. Register student record + user_role via RPC
+      // Pass both the display name (p_department) and the FK (p_department_id)
       const { error: rpcError } = await supabase.rpc('register_new_student', {
-        p_student_id: studentId.trim(),
-        p_name: existingStudent ? existingStudent.name : name.trim(),
-        p_age: existingStudent ? 0 : Number(age), // Age ignored if existing
-        p_gender: existingStudent ? 'Male' : gender, // Gender ignored if existing
-        p_department: existingStudent ? '' : department, // Dept ignored if existing
-        p_user_id: authData.user.id
+        p_student_id:    studentId.trim(),
+        p_name:          existingStudent ? existingStudent.name : name.trim(),
+        p_age:           existingStudent ? 0 : Number(age),
+        p_gender:        existingStudent ? 'Male' : gender,
+        p_department:    existingStudent ? '' : departmentName,
+        p_user_id:       authData.user.id,
+        p_department_id: existingStudent ? null : departmentId,
+        p_address:       existingStudent ? null : (address.trim() || null),
+        p_email:         email.trim().toLowerCase(),
       });
 
       if (rpcError) {
@@ -321,17 +313,54 @@ export default function RegisterPage() {
                       </div>
                       <div>
                         <Label className="text-foreground/90">Department</Label>
-                        <Select value={department} onValueChange={setDepartment}>
+                        <Select
+                          value={departmentId}
+                          onValueChange={(id) => {
+                            setDepartmentId(id);
+                            setDepartmentName(dbDepartments.find(d => d.id === id)?.name ?? "");
+                          }}
+                        >
                           <SelectTrigger className="mt-2 bg-background/50">
                             <SelectValue placeholder="Select Department" />
                           </SelectTrigger>
                           <SelectContent>
-                            {dbDepartments.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                            {dbDepartments.length === 0 ? (
+                              <div className="px-3 py-2 text-sm text-muted-foreground">No departments available</div>
+                            ) : (
+                              dbDepartments.map(d => (
+                                <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                              ))
+                            )}
                           </SelectContent>
                         </Select>
                       </div>
+                      <div>
+                        <Label className="text-foreground/90">Address</Label>
+                        <Input
+                          value={address}
+                          onChange={(e) => setAddress(e.target.value)}
+                          placeholder="123 Main St, City"
+                          className="mt-2 bg-background/50"
+                          required
+                        />
+                      </div>
                     </>
                   )}
+
+                  <div>
+                    <Label className="text-foreground/90">Email Address</Label>
+                    <Input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      className="mt-2 bg-background/50"
+                      required
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      This email will be used for login and password recovery.
+                    </p>
+                  </div>
 
                   <div className="space-y-4 pt-2 border-t border-border/50">
                     <div>

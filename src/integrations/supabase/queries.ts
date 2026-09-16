@@ -397,6 +397,31 @@ export function departmentMatches(departmentValue: string | null | undefined, ta
 }
 
 // Department queries
+
+/**
+ * Fetches departments with student counts using the department_id FK.
+ * Accurate regardless of how department text values are cased or formatted.
+ */
+export async function getPublicDepartments(): Promise<{ id: string; name: string }[]> {
+  const { data, error } = await supabase
+    .from("departments")
+    .select("id, name")
+    .order("name", { ascending: true });
+
+  if (error) throw error;
+
+  // Deduplicate by id (there should be none, but guard just in case)
+  const seen = new Set<string>();
+  const unique: { id: string; name: string }[] = [];
+  for (const row of data || []) {
+    if (row.id && !seen.has(row.id)) {
+      seen.add(row.id);
+      unique.push({ id: row.id, name: row.name.trim() });
+    }
+  }
+  return unique;
+}
+
 export async function getUniqueStudentDepartments() {
   const { data, error } = await supabase
     .from("students")
@@ -412,42 +437,40 @@ export async function getUniqueStudentDepartments() {
 }
 
 export async function getDepartments() {
+  // Fetch all department rows
   const { data: departments, error: deptError } = await supabase
-    .from("departments" as any)
+    .from("departments")
     .select("*")
     .order("name", { ascending: true });
 
   if (deptError) throw deptError;
 
-  const { data: allStudents, error: studentError } = await supabase
+  // Count active non-deleted students per department using the FK column.
+  // This is an exact match — no fuzzy string logic needed.
+  const { data: counts, error: countError } = await supabase
     .from("students")
-    .select("department")
+    .select("department_id")
     .is("deleted_at", null)
-    .eq("is_archived", false);
+    .eq("is_archived", false)
+    .not("department_id", "is", null);
 
-  if (studentError) throw studentError;
+  if (countError) throw countError;
 
   const departmentCounts = new Map<string, number>();
-  for (const student of allStudents || []) {
-    const key = (student.department || '').trim();
-    if (!key) continue;
-    departmentCounts.set(key, (departmentCounts.get(key) || 0) + 1);
+  for (const row of counts || []) {
+    if (!row.department_id) continue;
+    departmentCounts.set(row.department_id, (departmentCounts.get(row.department_id) || 0) + 1);
   }
 
-  const departmentsWithCounts = (departments || []).map((dept: any) => {
-    const deptKey = (dept.name || '').trim();
-    return {
-      ...dept,
-      student_count: departmentCounts.get(deptKey) || 0
-    };
-  });
-
-  return departmentsWithCounts;
+  return (departments || []).map((dept: any) => ({
+    ...dept,
+    student_count: departmentCounts.get(dept.id) || 0,
+  }));
 }
 
 export async function getDepartmentById(id: string) {
   const { data, error } = await supabase
-    .from("departments" as any)
+    .from("departments")
     .select("*")
     .eq("id", id)
     .maybeSingle();
@@ -456,12 +479,22 @@ export async function getDepartmentById(id: string) {
   return data;
 }
 
-export async function createDepartment(
-  department: any
-) {
+export async function createDepartment(department: any) {
+  // Prevent duplicate department names (case-insensitive check)
+  const { data: existing, error: checkError } = await supabase
+    .from("departments")
+    .select("id, name")
+    .ilike("name", department.name?.trim() ?? "");
+
+  if (checkError) throw checkError;
+
+  if (existing && existing.length > 0) {
+    throw new Error(`A department named "${department.name?.trim()}" already exists.`);
+  }
+
   const { data, error } = await supabase
-    .from("departments" as any)
-    .insert([department])
+    .from("departments")
+    .insert([{ ...department, name: department.name?.trim() }])
     .select()
     .maybeSingle();
 
@@ -469,13 +502,14 @@ export async function createDepartment(
   return data;
 }
 
-export async function updateDepartment(
-  id: string,
-  updates: any
-) {
+export async function updateDepartment(id: string, updates: any) {
+  const normalizedUpdates = updates.name
+    ? { ...updates, name: updates.name.trim() }
+    : updates;
+
   const { data, error } = await supabase
-    .from("departments" as any)
-    .update(updates)
+    .from("departments")
+    .update(normalizedUpdates)
     .eq("id", id)
     .select()
     .maybeSingle();
@@ -485,7 +519,6 @@ export async function updateDepartment(
 }
 
 export async function deleteDepartment(id: string) {
-  const { error } = await supabase.from("departments" as any).delete().eq("id", id);
-
+  const { error } = await supabase.from("departments").delete().eq("id", id);
   if (error) throw error;
 }

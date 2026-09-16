@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useMemo } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,6 +24,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { usePagination } from "@/hooks/usePagination";
+import { PaginationBar } from "@/components/shared/PaginationBar";
 
 export default function ReportsPage() {
   const { user } = useAuth();
@@ -68,56 +70,6 @@ export default function ReportsPage() {
 
     fetchIncome();
   }, [user]);
-
-  if (finesLoading || studentsLoading) {
-    return (
-      <AppLayout>
-        <div className="content-wrapper pt-0 flex items-center justify-center min-h-96">
-          <div className="flex flex-col items-center gap-3">
-            <Loader className="h-8 w-8 animate-spin text-primary" />
-            <p className="text-muted-foreground">Loading reports...</p>
-          </div>
-        </div>
-      </AppLayout>
-    );
-  }
-
-  if (finesError || studentsError) {
-    return (
-      <AppLayout>
-        <div className="content-wrapper pt-0">
-          <Card className="border-destructive/50 bg-destructive/5">
-            <CardHeader>
-              <CardTitle className="text-destructive">Error Loading Data</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-destructive/80">{finesError || studentsError}</p>
-            </CardContent>
-          </Card>
-        </div>
-      </AppLayout>
-    );
-  }
-
-  // Check if data is empty
-  if (mockStudents.length === 0) {
-    return (
-      <AppLayout>
-        <div className="content-wrapper pt-0">
-          <Card className="border-warning/50 bg-warning/5">
-            <CardHeader>
-              <CardTitle className="text-warning">No Student Data Available</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-sm text-warning/80">
-                No student records found in the database. Please contact support.
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-      </AppLayout>
-    );
-  }
 
   const isStudentView = user?.role === "student";
   // Find the student record for this user by matching user.studentId with student.id
@@ -189,6 +141,60 @@ export default function ReportsPage() {
   const totalBalance = finesWithStudents.reduce((sum, f) => sum + f.balance, 0);
   const paidCount = finesWithStudents.filter((f) => f.status === "Paid").length;
   const pendingCount = finesWithStudents.filter((f) => f.status === "Pending").length;
+
+  // Pagination for the two report tables
+  const finesPagination = usePagination(finesWithStudents);
+  const summaryPagination = usePagination(studentsWithFinesSummary);
+
+  if (finesLoading || studentsLoading) {
+    return (
+      <AppLayout>
+        <div className="content-wrapper pt-0 flex items-center justify-center min-h-96">
+          <div className="flex flex-col items-center gap-3">
+            <Loader className="h-8 w-8 animate-spin text-primary" />
+            <p className="text-muted-foreground">Loading reports...</p>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (finesError || studentsError) {
+    return (
+      <AppLayout>
+        <div className="content-wrapper pt-0">
+          <Card className="border-destructive/50 bg-destructive/5">
+            <CardHeader>
+              <CardTitle className="text-destructive">Error Loading Data</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-destructive/80">{finesError || studentsError}</p>
+            </CardContent>
+          </Card>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  // Check if data is empty
+  if (mockStudents.length === 0) {
+    return (
+      <AppLayout>
+        <div className="content-wrapper pt-0">
+          <Card className="border-warning/50 bg-warning/5">
+            <CardHeader>
+              <CardTitle className="text-warning">No Student Data Available</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-warning/80">
+                No student records found in the database. Please contact support.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </AppLayout>
+    );
+  }
 
   const handlePrint = (ref: React.RefObject<HTMLDivElement>, title: string) => {
     if (!ref.current) return;
@@ -527,7 +533,7 @@ export default function ReportsPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {finesWithStudents.map((fine) => (
+                      {finesPagination.paged.map((fine) => (
                         <TableRow key={fine.id}>
                           <TableCell className="font-medium">{fine.student?.student_id}</TableCell>
                           <TableCell>{fine.student?.name}</TableCell>
@@ -546,7 +552,7 @@ export default function ReportsPage() {
                 </div>
 
                 <div className="md:hidden space-y-3 no-print">
-                  {finesWithStudents.map((fine) => (
+                  {finesPagination.paged.map((fine) => (
                     <div key={fine.id} className="card-elevated p-4">
                       <div className="flex items-start justify-between">
                         <div>
@@ -570,6 +576,13 @@ export default function ReportsPage() {
                     </div>
                   ))}
                 </div>
+                <PaginationBar
+                  currentPage={finesPagination.currentPage}
+                  totalPages={finesPagination.totalPages}
+                  totalItems={finesWithStudents.length}
+                  pageSize={finesPagination.pageSize}
+                  onPageChange={finesPagination.setCurrentPage}
+                />
               </div>
             </CardContent>
           </Card>
@@ -597,7 +610,7 @@ export default function ReportsPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {finesWithStudents.map((fine) => (
+                      {finesPagination.paged.map((fine) => (
                         <TableRow key={fine.id}>
                           <TableCell>{new Date(fine.created_at).toLocaleDateString()}</TableCell>
                           <TableCell className="font-medium">{fine.fine_type}</TableCell>
@@ -613,7 +626,7 @@ export default function ReportsPage() {
                 </div>
 
                 <div className="md:hidden space-y-3 no-print">
-                  {finesWithStudents.map((fine) => (
+                  {finesPagination.paged.map((fine) => (
                     <div key={fine.id} className="card-elevated p-4">
                       <div className="flex items-start justify-between">
                         <div>
@@ -635,6 +648,13 @@ export default function ReportsPage() {
                     </div>
                   ))}
                 </div>
+                <PaginationBar
+                  currentPage={finesPagination.currentPage}
+                  totalPages={finesPagination.totalPages}
+                  totalItems={finesWithStudents.length}
+                  pageSize={finesPagination.pageSize}
+                  onPageChange={finesPagination.setCurrentPage}
+                />
               </div>
             </CardContent>
           </Card>
@@ -707,7 +727,7 @@ export default function ReportsPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {studentsWithFinesSummary.map((student) => (
+                        {summaryPagination.paged.map((student) => (
                           <TableRow key={student.id}>
                             <TableCell className="font-medium">
                               {student.student_id}
@@ -730,7 +750,7 @@ export default function ReportsPage() {
                   </div>
 
                   <div className="md:hidden space-y-3 no-print">
-                    {studentsWithFinesSummary.map((student) => (
+                    {summaryPagination.paged.map((student) => (
                       <div key={student.id} className="card-elevated p-4">
                         <div className="flex items-start justify-between">
                           <div>
@@ -756,6 +776,13 @@ export default function ReportsPage() {
                       </div>
                     ))}
                   </div>
+                  <PaginationBar
+                    currentPage={summaryPagination.currentPage}
+                    totalPages={summaryPagination.totalPages}
+                    totalItems={studentsWithFinesSummary.length}
+                    pageSize={summaryPagination.pageSize}
+                    onPageChange={summaryPagination.setCurrentPage}
+                  />
                 </>
               )}
 

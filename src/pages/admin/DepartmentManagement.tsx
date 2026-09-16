@@ -62,7 +62,10 @@ import {
 import { AppLayout } from '@/components/layout/AppLayout';
 import { toast } from 'sonner';
 import { createDepartment, getDepartments, updateDepartment, deleteDepartment, createStudent, updateStudent, deleteStudent, binStudent, restoreStudent, archiveStudent, unarchiveStudent, getStudentsByStudentId, normalizeDepartmentKey } from '@/integrations/supabase/queries';
+import { supabase } from '@/integrations/supabase/client';
 import { useStudents } from '@/hooks/useStudents';
+import { usePagination } from '@/hooks/usePagination';
+import { PaginationBar } from '@/components/shared/PaginationBar';
 import { parseStudentCsvRecords } from '@/lib/studentCsv';
 import type { Student } from '@/types';
 
@@ -100,8 +103,7 @@ export default function DepartmentManagement() {
     gender: 'Male' as 'Male' | 'Female' | 'Other',
     address: '',
     department: ''
-  });
-  const [formData, setFormData] = useState({
+  });  const [formData, setFormData] = useState({
     name: '',
     description: '',
     head_of_department: '',
@@ -113,6 +115,18 @@ export default function DepartmentManagement() {
 
   useEffect(() => {
     loadDepartments();
+
+    // Keep student counts in sync with live student changes via realtime
+    const channel = supabase
+      .channel('dept-student-count-sync')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'students' },
+        () => { loadDepartments(); }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
   useEffect(() => {
@@ -132,6 +146,18 @@ export default function DepartmentManagement() {
     });
   }, [departmentStudents, studentSearch]);
 
+  const {
+    paged: pagedStudents,
+    currentPage,
+    setCurrentPage,
+    totalPages,
+    pageSize,
+  } = usePagination(filteredStudents);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedDepartment, studentSearch, studentViewFilter, setCurrentPage]);
+
   const closeStudentModal = () => {
     setStudentModalOpen(false);
     setSelectedDepartment(null);
@@ -146,7 +172,7 @@ export default function DepartmentManagement() {
       age: 18,
       gender: 'Male',
       address: '',
-      department: selectedDepartment || ''
+      department: selectedDepartmentInfo?.name || ''
     });
     setEditingStudent(null);
   };
@@ -160,7 +186,7 @@ export default function DepartmentManagement() {
         age: student.age,
         gender: student.gender,
         address: student.address || '',
-        department: student.department || selectedDepartment || ''
+        department: student.department || selectedDepartmentInfo?.name || ''
       });
     } else {
       setEditingStudent(null);
@@ -170,7 +196,7 @@ export default function DepartmentManagement() {
         age: 18,
         gender: 'Male',
         address: '',
-        department: selectedDepartment || ''
+        department: selectedDepartmentInfo?.name || ''
       });
     }
     setStudentDialogOpen(true);
@@ -192,6 +218,7 @@ export default function DepartmentManagement() {
           age: studentForm.age,
           gender: studentForm.gender,
           department: studentForm.department,
+          department_id: selectedDepartment || editingStudent.department_id,
           address: studentForm.address || null
         });
         toast.success('Student updated successfully');
@@ -202,6 +229,7 @@ export default function DepartmentManagement() {
           age: studentForm.age,
           gender: studentForm.gender,
           department: studentForm.department,
+          department_id: selectedDepartment || null,
           address: studentForm.address || null
         });
         toast.success('Student added successfully');
@@ -467,7 +495,7 @@ export default function DepartmentManagement() {
     dept.head_of_department?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const selectedDepartmentInfo = departments.find((dept) => dept.name === selectedDepartment);
+  const selectedDepartmentInfo = departments.find((dept) => dept.id === selectedDepartment);
 
   return (
     <AppLayout>
@@ -592,7 +620,7 @@ export default function DepartmentManagement() {
                   key={department.id}
                   className="hover:shadow-lg transition-shadow cursor-pointer"
                   onClick={() => {
-                    setSelectedDepartment(department.name);
+                    setSelectedDepartment(department.id);
                     setStudentSearch('');
                     setStudentViewFilter('active');
                     setStudentModalOpen(true);
@@ -601,7 +629,7 @@ export default function DepartmentManagement() {
                   tabIndex={0}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
-                      setSelectedDepartment(department.name);
+                      setSelectedDepartment(department.id);
                       setStudentSearch('');
                       setStudentViewFilter('active');
                       setStudentModalOpen(true);
@@ -725,10 +753,10 @@ export default function DepartmentManagement() {
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <DialogTitle>
-                      {selectedDepartment ? `${selectedDepartment} Students` : 'Students'}
+                      {selectedDepartmentInfo ? `${selectedDepartmentInfo.name} Students` : 'Students'}
                     </DialogTitle>
                     <p className="text-sm text-muted-foreground mt-2">
-                      {selectedDepartmentInfo?.description || `Showing students in ${selectedDepartment || 'selected'} department.`}
+                      {selectedDepartmentInfo?.description || `Showing students in ${selectedDepartmentInfo?.name || 'selected'} department.`}
                     </p>
                   </div>
                   <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
@@ -800,7 +828,7 @@ export default function DepartmentManagement() {
                   ) : (
                     <div className="space-y-4">
                       <div className="space-y-3 md:hidden">
-                        {filteredStudents.map((student) => (
+                        {pagedStudents.map((student) => (
                           <Card key={student.id} className="border">
                             <CardContent className="space-y-4 pt-4">
                               <div className="space-y-1">
@@ -921,9 +949,9 @@ export default function DepartmentManagement() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {filteredStudents.map((student, index) => (
+                            {pagedStudents.map((student, index) => (
                               <TableRow key={student.id}>
-                                <TableCell className="font-medium text-muted-foreground">{index + 1}</TableCell>
+                                <TableCell className="font-medium text-muted-foreground">{(currentPage - 1) * pageSize + index + 1}</TableCell>
                                 <TableCell>{student.student_id}</TableCell>
                                 <TableCell>{student.name}</TableCell>
                                 <TableCell>{student.age}</TableCell>
@@ -1016,6 +1044,14 @@ export default function DepartmentManagement() {
                           </TableBody>
                         </Table>
                       </div>
+
+                      <PaginationBar
+                        currentPage={currentPage}
+                        totalPages={totalPages}
+                        totalItems={filteredStudents.length}
+                        pageSize={pageSize}
+                        onPageChange={setCurrentPage}
+                      />
                     </div>
                   )}
                 </div>

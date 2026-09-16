@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/select";
 import { Clock, Loader, Search, Filter } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useFines } from "@/hooks/useFines";
 import { useStudents } from "@/hooks/useStudents";
 import { DEFAULT_DEPARTMENTS } from "@/lib/constants";
@@ -19,6 +19,8 @@ import {
   getUniqueStudentDepartments, 
   getDepartments 
 } from "@/integrations/supabase/queries";
+import { usePagination } from "@/hooks/usePagination";
+import { PaginationBar } from "@/components/shared/PaginationBar";
 
 export default function AdminTransactionsPage() {
   const { fines, loading: finesLoading, error: finesError } = useFines('all');
@@ -57,6 +59,40 @@ export default function AdminTransactionsPage() {
       setDbDepartments(DEFAULT_DEPARTMENTS);
     }
   };
+
+  // fines.student_id is the UUID (foreign key to students.id)
+  let recentFines = fines
+    .map((fine) => ({
+      ...fine,
+      student: students.find((s) => s.id === fine.student_id),
+    }));
+
+  if (searchTerm) {
+    const search = searchTerm.toLowerCase();
+    recentFines = recentFines.filter(
+      (f) =>
+        f.student?.name?.toLowerCase().includes(search) ||
+        f.student?.student_id?.toLowerCase().includes(search)
+    );
+  }
+
+  if (selectedDepartment) {
+    recentFines = recentFines.filter(
+      (f) => f.student?.department === selectedDepartment
+    );
+  }
+
+  if (selectedStatus) {
+    recentFines = recentFines.filter((f) => f.status === selectedStatus);
+  }
+
+  // Calculate summary stats
+  const totalAmount = recentFines.reduce((sum, f) => sum + f.amount, 0);
+  const totalBalance = recentFines.reduce((sum, f) => sum + f.balance, 0);
+  const paidCount = recentFines.filter((f) => f.status === "Paid").length;
+  const pendingCount = recentFines.filter((f) => f.status === "Pending").length;
+
+  const { paged: pagedFines, currentPage, setCurrentPage, totalPages, pageSize } = usePagination(recentFines);
 
   if (finesLoading || studentsLoading) {
     return (
@@ -105,38 +141,6 @@ export default function AdminTransactionsPage() {
       </AppLayout>
     );
   }
-
-  // fines.student_id is the UUID (foreign key to students.id)
-  let recentFines = fines
-    .map((fine) => ({
-      ...fine,
-      student: students.find((s) => s.id === fine.student_id),
-    }));
-
-  if (searchTerm) {
-    const search = searchTerm.toLowerCase();
-    recentFines = recentFines.filter(
-      (f) =>
-        f.student?.name?.toLowerCase().includes(search) ||
-        f.student?.student_id?.toLowerCase().includes(search)
-    );
-  }
-
-  if (selectedDepartment) {
-    recentFines = recentFines.filter(
-      (f) => f.student?.department === selectedDepartment
-    );
-  }
-
-  if (selectedStatus) {
-    recentFines = recentFines.filter((f) => f.status === selectedStatus);
-  }
-
-  // Calculate summary stats
-  const totalAmount = recentFines.reduce((sum, f) => sum + f.amount, 0);
-  const totalBalance = recentFines.reduce((sum, f) => sum + f.balance, 0);
-  const paidCount = recentFines.filter((f) => f.status === "Paid").length;
-  const pendingCount = recentFines.filter((f) => f.status === "Pending").length;
 
   return (
     <AppLayout>
@@ -280,8 +284,9 @@ export default function AdminTransactionsPage() {
           </CardHeader>
           <CardContent>
             {recentFines.length > 0 ? (
-              <div className="space-y-4">
-                {recentFines.map((fine) => (
+              <>
+                <div className="space-y-4">
+                  {pagedFines.map((fine) => (
                   <div
                     key={fine.id}
                     className="flex flex-col md:flex-row items-start md:items-center justify-between p-4 rounded-lg border border-border hover:bg-muted/30 transition-colors"
@@ -336,8 +341,16 @@ export default function AdminTransactionsPage() {
                       </div>
                     </div>
                   </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+                <PaginationBar
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  totalItems={recentFines.length}
+                  pageSize={pageSize}
+                  onPageChange={setCurrentPage}
+                />
+              </>
             ) : (
               <div className="text-center py-12 text-muted-foreground">
                 No transactions recorded yet.

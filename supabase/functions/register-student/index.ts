@@ -23,17 +23,17 @@ serve(async (req) => {
       }
     );
 
-    const { student_id, name, age, gender, department, password } = await req.json();
+    const { student_id, name, age, gender, department, email, password } = await req.json();
 
-    if (!student_id || !name || !password) {
-      throw new Error("Missing required fields: student_id, name, password");
+    if (!student_id || !name || !email || !password) {
+      throw new Error("Missing required fields: student_id, name, email, password");
     }
 
-    const email = `${student_id}@student.local`.toLowerCase();
+    const normalizedEmail = email.trim().toLowerCase();
 
     // 1. Create the user in auth.users
     const { data: authData, error: authError } = await supabaseClient.auth.admin.createUser({
-      email: email,
+      email: normalizedEmail,
       password: password,
       email_confirm: true,
       user_metadata: { name: name, role: 'student', student_id: student_id }
@@ -58,7 +58,8 @@ serve(async (req) => {
       p_age: Number(age),
       p_gender: gender,
       p_department: department,
-      p_user_id: userId
+      p_user_id: userId,
+      p_email: normalizedEmail
     });
 
     if (dbError) {

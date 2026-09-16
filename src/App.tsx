@@ -29,6 +29,7 @@ const PaymentSuccess = lazy(() => import("./pages/PaymentSuccess"));
 const PaymentFailed = lazy(() => import("./pages/PaymentFailed"));
 const DepartmentManagement = lazy(() => import("./pages/admin/DepartmentManagement"));
 const ForgotPasswordPage = lazy(() => import("./pages/ForgotPasswordPage"));
+const PasswordResetPage = lazy(() => import("./pages/PasswordResetPage"));
 const RegisterPage = lazy(() => import("./pages/RegisterPage"));
 const ContactAdminPage = lazy(() => import("./pages/ContactAdminPage"));
 const AdminMessagesPage = lazy(() => import("./pages/AdminMessagesPage"));
@@ -82,6 +83,7 @@ const AppRoutes = () => {
         <Route path="/manage-about" element={<RequireAuth><ManageAboutPage /></RequireAuth>} />
         <Route path="/departments" element={<RequireAuth><DepartmentManagement /></RequireAuth>} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<PasswordResetPage />} />
         <Route path="/contact-admin" element={<ContactAdminPage />} />
         <Route path="/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
         <Route path="*" element={<NotFound />} />

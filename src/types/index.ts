@@ -20,7 +20,8 @@ export interface Student {
   name: string;
   age: number;
   gender: Gender;
-  department: Department;
+  department: string;
+  department_id: string | null;
   address: string | null;
   photo_url?: string;
   created_at: string;

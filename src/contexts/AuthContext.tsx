@@ -17,7 +17,7 @@ type AuthContextType = {
   loading: boolean;
   metadataLoading: boolean;
   authenticating: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<"admin" | "student" | undefined>;
   loginStudent: (studentId: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   signup: (email: string, password: string, name: string, role: "admin" | "student") => Promise<void>;
@@ -288,9 +288,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
 
       if (data?.user) {
+        const { data: roleData } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", data.user.id)
+          .maybeSingle();
         await loadUserData(data.user.id, data.user.email || "");
         toast.success("Signed in successfully");
+        return roleData?.role as "admin" | "student" | undefined;
       }
+      return undefined;
     } catch (error: unknown) {
       console.error("login caught:", error);
       throw error;
@@ -304,7 +311,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       purgeStaleSupabaseSessions();
       const trimmedStudentId = studentId.trim();
-      const studentEmail = `${trimmedStudentId}@student.local`;
+      const { data: registeredEmail } = await supabase.rpc("get_student_auth_email", {
+        p_student_id: trimmedStudentId,
+      });
+      const studentEmail = registeredEmail || `${trimmedStudentId}@student.local`;
       
       // Attempt sign in directly
       const { data, error } = await supabase.auth.signInWithPassword({ 

@@ -26,6 +26,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Archive, Trash2 as TrashIcon, RefreshCw } from "lucide-react";
 import { archiveFine, unarchiveFine, binFine, restoreFine, deleteFine } from "@/integrations/supabase/queries";
 import { toast } from "sonner";
+import { usePagination } from "@/hooks/usePagination";
+import { PaginationBar } from "@/components/shared/PaginationBar";
 
 export default function StudentFinesPage() {
   const { user } = useAuth();
@@ -99,6 +101,23 @@ export default function StudentFinesPage() {
     }
   };
 
+  // Get current student data by matching user.studentId with student.id
+  const currentStudent = mockStudents.find((s) => s.id === user?.studentId) || mockStudents.find((s) => s.student_id === user?.studentId);
+  
+  // fines.student_id is the UUID (foreign key to students.id)
+  const studentFines = currentStudent
+    ? fines.filter((f) => f.student_id === currentStudent.id)
+    : [];
+
+  // Calculate statistics
+  const totalFinesCount = studentFines.length;
+  const totalAmount = studentFines.reduce((sum, fine) => sum + Number(fine.amount || 0), 0);
+  const totalBalance = studentFines.reduce((sum, fine) => sum + Number(fine.balance || 0), 0);
+  const paidCount = studentFines.filter((f) => f.status === "Paid").length;
+  const pendingCount = studentFines.filter((f) => f.status === "Pending").length;
+
+  const { paged: pagedFines, currentPage, setCurrentPage, totalPages, pageSize } = usePagination(studentFines);
+
   if (finesLoading || studentsLoading) {
     return (
       <AppLayout>
@@ -129,7 +148,6 @@ export default function StudentFinesPage() {
     );
   }
 
-  // Check if data is empty
   if (mockStudents.length === 0) {
     return (
       <AppLayout>
@@ -149,10 +167,6 @@ export default function StudentFinesPage() {
     );
   }
 
-  // Get current student data by matching user.studentId with student.id
-  const currentStudent = mockStudents.find((s) => s.id === user?.studentId) || mockStudents.find((s) => s.student_id === user?.studentId);
-  
-  // If no student data found for this user
   if (!currentStudent) {
     return (
       <AppLayout>
@@ -171,16 +185,6 @@ export default function StudentFinesPage() {
       </AppLayout>
     );
   }
-  
-  // fines.student_id is the UUID (foreign key to students.id)
-  const studentFines = fines.filter((f) => f.student_id === currentStudent?.id);
-
-  // Calculate statistics
-  const totalFinesCount = studentFines.length;
-  const totalAmount = studentFines.reduce((sum, fine) => sum + Number(fine.amount || 0), 0);
-  const totalBalance = studentFines.reduce((sum, fine) => sum + Number(fine.balance || 0), 0);
-  const paidCount = studentFines.filter((f) => f.status === "Paid").length;
-  const pendingCount = studentFines.filter((f) => f.status === "Pending").length;
 
   return (
     <AppLayout>
@@ -293,9 +297,9 @@ export default function StudentFinesPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {studentFines.map((fine, index) => (
+                      {pagedFines.map((fine, index) => (
                         <TableRow key={fine.id}>
-                          <TableCell className="font-medium text-muted-foreground">{index + 1}</TableCell>
+                          <TableCell className="font-medium text-muted-foreground">{(currentPage - 1) * pageSize + index + 1}</TableCell>
                           <TableCell>
                             {new Date(fine.created_at).toLocaleDateString()}
                           </TableCell>
@@ -371,7 +375,7 @@ export default function StudentFinesPage() {
 
                 {/* Mobile view */}
                 <div className="md:hidden space-y-4">
-                  {studentFines.map((fine) => (
+                  {pagedFines.map((fine) => (
                     <Card key={fine.id} className="border">
                       <CardContent className="pt-6">
                         <div className="space-y-3">
@@ -458,6 +462,13 @@ export default function StudentFinesPage() {
                     </Card>
                   ))}
                 </div>
+                <PaginationBar
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  totalItems={studentFines.length}
+                  pageSize={pageSize}
+                  onPageChange={setCurrentPage}
+                />
               </>
             ) : (
               <div className="text-center py-12">
