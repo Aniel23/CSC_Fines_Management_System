@@ -303,10 +303,10 @@ export default function ProfilePage() {
                   <Mail className="h-4 w-4" />
                   <span className="truncate">{user.email}</span>
                 </div>
-                {user.studentId && (
+                {(user.studentCode || user.studentId) && (
                   <div className="flex items-center gap-3 text-sm text-muted-foreground">
                     <GraduationCap className="h-4 w-4" />
-                    <span>ID: {user.studentId}</span>
+                    <span>ID: {user.studentCode || user.studentId}</span>
                   </div>
                 )}
                 <div className="flex items-center gap-3 text-sm text-muted-foreground">
@@ -349,12 +349,12 @@ export default function ProfilePage() {
                   </div>
                 </div>
 
-                {user.studentId && (
+                {(user.studentCode || user.studentId) && (
                   <div className="space-y-1">
                     <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Student ID Number</label>
                     <div className="p-3 bg-muted/50 rounded-lg border border-border flex items-center gap-3">
                       <GraduationCap className="h-4 w-4 text-primary" />
-                      <span className="text-sm font-medium">{user.studentId}</span>
+                      <span className="text-sm font-medium">{user.studentCode || user.studentId}</span>
                     </div>
                   </div>
                 )}

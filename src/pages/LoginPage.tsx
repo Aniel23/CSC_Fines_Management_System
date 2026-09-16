@@ -59,8 +59,9 @@ export default function LoginPage() {
     }
 
     // Check if it's a student email (ends with @student.local) or a regular email
-    const isStudentEmail = identifier.endsWith("@student.local");
-    const looksLikeRegularEmail = identifier.includes("@") && !isStudentEmail;
+    const normalizedIdentifier = identifier.trim();
+    const isStudentEmail = normalizedIdentifier.toLowerCase().endsWith("@student.local");
+    const looksLikeRegularEmail = normalizedIdentifier.includes("@") && !isStudentEmail;
 
     if (looksLikeRegularEmail) {
       // Admin login with regular email
@@ -69,7 +70,7 @@ export default function LoginPage() {
         return;
       }
       try {
-        const role = await login(identifier, password);
+        const role = await login(normalizedIdentifier, password);
         toast.success("Signed in");
         navigate(role === "student" ? "/student-dashboard" : "/dashboard");
       } catch (err: unknown) {
@@ -78,7 +79,7 @@ export default function LoginPage() {
       }
     } else if (isStudentEmail) {
       // Legacy student accounts used the synthetic student.local address.
-      const studentIdFromEmail = identifier.replace("@student.local", "");
+      const studentIdFromEmail = normalizedIdentifier.replace(/@student\.local$/i, "");
       if (!password) {
         toast.error("Password is required for student login");
         return;
@@ -99,7 +100,7 @@ export default function LoginPage() {
       }
 
       try {
-        await loginStudent(identifier, password);
+        await loginStudent(normalizedIdentifier, password);
         toast.success("Signed in as student");
         navigate("/student-dashboard");
       } catch (err: unknown) {

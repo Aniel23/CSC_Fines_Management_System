@@ -9,6 +9,7 @@ type User = {
   name?: string;
   role?: "admin" | "student";
   studentId?: string;
+  studentCode?: string;
   avatarUrl?: string;
 };
 
@@ -229,6 +230,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       let currentName = baseName;
       let studentId: string | undefined = preloadedStudentId;
+      let studentCode: string | undefined;
       let avatarUrl: string | undefined = undefined;
       let roleData: { role: "admin" | "student"; student_id: string | null; avatar_url: string | null } | null = null;
 
@@ -254,11 +256,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
           if (!studentError && student) {
             currentName = (student as { name?: string } | null)?.name || currentName;
+            studentCode = (student as { student_id?: string } | null)?.student_id;
           }
         }
 
         // Enrich the user state with fetched metadata
-        setUser({ id: userId, email, role, name: currentName, studentId, avatarUrl });
+        setUser({ id: userId, email, role, name: currentName, studentId, studentCode, avatarUrl });
       }
       
       loadedUserId.current = userId;
@@ -310,11 +313,25 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setAuthenticating(true);
     try {
       purgeStaleSupabaseSessions();
-      const trimmedStudentId = studentId.trim();
-      const { data: registeredEmail } = await supabase.rpc("get_student_auth_email", {
+      const trimmedStudentId = studentId.trim().replace(/\s+/g, "");
+      const { data: registeredEmail, error: lookupError } = await supabase.rpc("get_student_auth_email", {
         p_student_id: trimmedStudentId,
       });
-      const studentEmail = registeredEmail || `${trimmedStudentId}@student.local`;
+
+      // Fall back to the students table when the new RPC has not been deployed yet.
+      let studentEmail = registeredEmail;
+      if (!studentEmail && lookupError) {
+        console.warn("Student email RPC unavailable; using direct student lookup.", lookupError.message);
+        const { data: student } = await supabase
+          .from("students")
+          .select("email")
+          .eq("student_id", trimmedStudentId)
+          .maybeSingle();
+        studentEmail = student?.email || null;
+      }
+
+      // Keep legacy accounts working until their synthetic email is migrated.
+      studentEmail = studentEmail || `${trimmedStudentId}@student.local`;
       
       // Attempt sign in directly
       const { data, error } = await supabase.auth.signInWithPassword({ 
