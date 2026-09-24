@@ -89,7 +89,9 @@ export default function LoginPage() {
         toast.success("Signed in as student");
         navigate("/student-dashboard");
       } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : "Student sign in failed";
+        const msg = err instanceof Error && err.message.includes("Invalid login credentials")
+          ? "Invalid Student ID or Password"
+          : err instanceof Error ? err.message : "Student sign in failed";
         toast.error(msg);
       }
     } else {
@@ -104,7 +106,9 @@ export default function LoginPage() {
         toast.success("Signed in as student");
         navigate("/student-dashboard");
       } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : "Student sign in failed";
+        const msg = err instanceof Error && err.message.includes("Invalid login credentials")
+          ? "Invalid Student ID or Password"
+          : err instanceof Error ? err.message : "Student sign in failed";
         toast.error(msg);
       }
     }

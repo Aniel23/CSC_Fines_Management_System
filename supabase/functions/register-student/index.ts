@@ -46,8 +46,8 @@ serve(async (req) => {
     if (authError) {
       console.error("Error creating auth user:", authError);
       // Check if user already exists
-      if (authError.message.includes("already registered")) {
-        throw new Error("Student ID already registered. Please contact support or use a different ID.");
+      if (authError.code === "email_exists" || authError.message.toLowerCase().includes("already registered")) {
+        throw new Error("This email address is already registered. Please use a different email or log in.");
       }
       throw authError;
     }
@@ -84,10 +84,11 @@ serve(async (req) => {
         status: 200,
       }
     );
-  } catch (error) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Unable to register student";
     console.error("Error in register-student function:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: message }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 400,

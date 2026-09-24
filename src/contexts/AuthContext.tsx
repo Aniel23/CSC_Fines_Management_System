@@ -286,7 +286,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
       if (error) {
-        toast.error(error.message || "Sign in failed");
         throw error;
       }
 
@@ -297,7 +296,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           .eq("user_id", data.user.id)
           .maybeSingle();
         await loadUserData(data.user.id, data.user.email || "");
-        toast.success("Signed in successfully");
         return roleData?.role as "admin" | "student" | undefined;
       }
       return undefined;
@@ -340,11 +338,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       });
 
       if (error) {
-        if (error.message.includes("Invalid login credentials")) {
-          toast.error("Invalid Student ID or Password");
-        } else {
-          toast.error(error.message || "Student sign in failed");
-        }
         throw error;
       }
 
@@ -352,7 +345,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         // Fetch student details AFTER successful login
         // We can find the student record linked to this user
         await loadUserData(data.user.id, data.user.email || studentEmail);
-        toast.success("Signed in as student");
       }
     } catch (error: unknown) {
       throw error;

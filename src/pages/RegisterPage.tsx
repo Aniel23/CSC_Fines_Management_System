@@ -185,13 +185,29 @@ export default function RegisterPage() {
       });
 
       if (registrationError) {
-        const msg = registrationError.message?.toLowerCase() || "";
+        let registrationMessage = registrationError.message || "Registration failed";
+        const errorResponse = (registrationError as { context?: Response }).context;
+
+        if (errorResponse) {
+          try {
+            const errorBody = await errorResponse.clone().json() as { error?: string; message?: string };
+            registrationMessage = errorBody.error || errorBody.message || registrationMessage;
+          } catch {
+            registrationMessage = registrationError.message || registrationMessage;
+          }
+        }
+
+        const msg = registrationMessage.toLowerCase();
+        if (msg.includes("email address is already registered")) {
+          toast.error("This email address is already registered. Please use a different email or log in.");
+          return;
+        }
         if (msg.includes("already") || msg.includes("registered") || msg.includes("exists")) {
           toast.error("This Student ID already has an account. Please log in instead.");
           navigate("/");
           return;
         }
-        throw registrationError;
+        throw new Error(registrationMessage);
       }
 
       if (!registrationData?.user) throw new Error("Registration failed");

@@ -7,10 +7,11 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { User, Mail, Shield, GraduationCap, Calendar, Clock, ArrowLeft, Camera, Loader2, Trash2, QrCode, Eye, EyeOff } from "lucide-react";
+import { User, Mail, Shield, GraduationCap, Calendar, Clock, ArrowLeft, Camera, Loader2, Trash2, QrCode, Eye, EyeOff, Save } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAppSettings } from "@/hooks/useAppSettings";
+import { GENDERS } from "@/lib/constants";
 
 export default function ProfilePage() {
   const { user, refreshUserData } = useAuth();
@@ -23,8 +24,38 @@ export default function ProfilePage() {
   const [showOldPassword, setShowOldPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [studentProfile, setStudentProfile] = useState({ name: "", age: "", gender: "Male", address: "" });
+  const [loadingStudentProfile, setLoadingStudentProfile] = useState(false);
+  const [savingStudentProfile, setSavingStudentProfile] = useState(false);
   const { settings, upsertSetting } = useAppSettings();
   const qrFileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (user?.role !== "student" || !user.studentId) return;
+
+    const loadStudentProfile = async () => {
+      setLoadingStudentProfile(true);
+      const { data, error } = await supabase
+        .from("students")
+        .select("name, age, gender, address")
+        .eq("id", user.studentId)
+        .maybeSingle();
+
+      if (error) {
+        toast.error("Failed to load your student details");
+      } else if (data) {
+        setStudentProfile({
+          name: data.name,
+          age: String(data.age),
+          gender: data.gender,
+          address: data.address || "",
+        });
+      }
+      setLoadingStudentProfile(false);
+    };
+
+    loadStudentProfile();
+  }, [user?.role, user?.studentId]);
 
   if (!user) return null;
 
@@ -155,6 +186,43 @@ export default function ProfilePage() {
     } finally {
       setChanging(false);
     }
+  };
+
+  const handleSaveStudentProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const age = Number(studentProfile.age);
+    const name = studentProfile.name.trim().replace(/\s+/g, " ");
+    const address = studentProfile.address.trim().replace(/\s+/g, " ");
+
+    if (!name || name.length > 255) {
+      toast.error("Please enter a name between 1 and 255 characters");
+      return;
+    }
+    if (!Number.isInteger(age) || age < 15 || age > 100) {
+      toast.error("Age must be between 15 and 100");
+      return;
+    }
+    if (address.length > 500) {
+      toast.error("Address must not exceed 500 characters");
+      return;
+    }
+
+    setSavingStudentProfile(true);
+    const { error } = await supabase.rpc("update_own_student_profile", {
+      p_name: name,
+      p_age: age,
+      p_gender: studentProfile.gender,
+      p_address: address,
+    });
+    setSavingStudentProfile(false);
+
+    if (error) {
+      toast.error(error.message || "Failed to update your student details");
+      return;
+    }
+
+    toast.success("Student details updated successfully");
+    await refreshUserData();
   };
 
   const handlePaymentQrUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -375,6 +443,73 @@ export default function ProfilePage() {
               </div>
             </CardContent>
           </Card>
+
+          {user.role === "student" && (
+            <Card className="md:col-span-2">
+              <CardHeader>
+                <CardTitle>Edit Student Details</CardTitle>
+                <CardDescription>Update the personal details attached to your student account.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleSaveStudentProfile} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="studentProfileName">Name</Label>
+                      <Input
+                        id="studentProfileName"
+                        value={studentProfile.name}
+                        onChange={(event) => setStudentProfile((profile) => ({ ...profile, name: event.target.value }))}
+                        maxLength={255}
+                        disabled={loadingStudentProfile || savingStudentProfile}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="studentProfileAge">Age</Label>
+                      <Input
+                        id="studentProfileAge"
+                        type="number"
+                        min={15}
+                        max={100}
+                        value={studentProfile.age}
+                        onChange={(event) => setStudentProfile((profile) => ({ ...profile, age: event.target.value }))}
+                        disabled={loadingStudentProfile || savingStudentProfile}
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="studentProfileGender">Gender</Label>
+                      <select
+                        id="studentProfileGender"
+                        value={studentProfile.gender}
+                        onChange={(event) => setStudentProfile((profile) => ({ ...profile, gender: event.target.value }))}
+                        disabled={loadingStudentProfile || savingStudentProfile}
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      >
+                        {GENDERS.map((gender) => <option key={gender} value={gender}>{gender}</option>)}
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="studentProfileAddress">Address</Label>
+                      <Input
+                        id="studentProfileAddress"
+                        value={studentProfile.address}
+                        onChange={(event) => setStudentProfile((profile) => ({ ...profile, address: event.target.value }))}
+                        maxLength={500}
+                        disabled={loadingStudentProfile || savingStudentProfile}
+                      />
+                    </div>
+                  </div>
+                  <Button type="submit" disabled={loadingStudentProfile || savingStudentProfile}>
+                    {savingStudentProfile ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+                    Save Details
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Change Password */}
           <Card className="md:col-span-2">
