@@ -80,7 +80,9 @@ export default function RegisterPage() {
 
     setChecking(true);
     try {
-      // 1. Find the student record (case-insensitive)
+      setExistingStudent(null);
+
+      // Find the enrolled student record before checking account ownership.
       const { data: student, error: studentError } = await supabase
         .from("students")
         .select("id, name")
@@ -90,19 +92,16 @@ export default function RegisterPage() {
       if (studentError) throw studentError;
 
       if (student) {
-        // Student record exists. Check if already registered (has user_role for this student)
-        const { data: roles, error: rolesError } = await supabase
-          .from("user_roles")
-          .select("id, user_id, role, student_id")
-          .eq("student_id", student.id);
+        // Check server-side because anonymous visitors cannot reliably query auth users.
+        const { data: hasAuthAccount, error: authCheckError } = await supabase.rpc("has_student_auth_account", {
+          p_student_id: studentId.trim(),
+        });
 
-        if (rolesError) throw rolesError;
+        if (authCheckError) throw authCheckError;
 
-        // Check if any user_role exists for this student (regardless of role type)
-        if (roles && roles.length > 0) {
-          toast.error("This Student ID is already registered.");
-          setAlreadyRegisteredOpen(true);
-          setStep("check");
+        if (hasAuthAccount === true) {
+          toast.error("This Student ID already has an account. Please log in instead.");
+          navigate("/");
           return;
         }
 
@@ -111,8 +110,9 @@ export default function RegisterPage() {
         setStep("register");
       } else {
         setExistingStudent(null);
-        toast.info("New student ID detected. Please fill in your details.");
-        setStep("register");
+        toast.error("Student ID not found in the database. Please contact the administrator for help.");
+        setStep("check");
+        return;
       }
     } catch (error: unknown) {
       console.error("Check failed:", error);
@@ -124,6 +124,12 @@ export default function RegisterPage() {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!existingStudent) {
+      toast.error("Student ID not found in the database. Please contact the administrator for help.");
+      setStep("check");
+      return;
+    }
 
     const normalizedName = normalizeWhitespace(name);
     const normalizedAddress = normalizeWhitespace(address);
@@ -181,9 +187,8 @@ export default function RegisterPage() {
       if (registrationError) {
         const msg = registrationError.message?.toLowerCase() || "";
         if (msg.includes("already") || msg.includes("registered") || msg.includes("exists")) {
-          toast.error("This account is already registered. Please sign in instead.");
-          setAlreadyRegisteredOpen(true);
-          setStep("check");
+          toast.error("This Student ID already has an account. Please log in instead.");
+          navigate("/");
           return;
         }
         throw registrationError;

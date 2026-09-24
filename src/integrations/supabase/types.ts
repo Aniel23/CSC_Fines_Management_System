@@ -319,6 +319,7 @@ export type Database = {
     }
     Functions: {
       get_student_auth_email: { Args: { p_student_id: string }; Returns: string | null }
+      has_student_auth_account: { Args: { p_student_id: string }; Returns: boolean }
       get_user_student_id: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {

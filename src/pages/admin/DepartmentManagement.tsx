@@ -435,7 +435,8 @@ export default function DepartmentManagement() {
         return;
       }
 
-      const defaultDepartment = (selectedDepartment || editingDepartment?.name || formData.name || '').trim();
+      const selectedDepartmentName = departments.find((department) => department.id === selectedDepartment)?.name || '';
+      const defaultDepartment = (selectedDepartmentName || editingDepartment?.name || formData.name || '').trim();
       const { records: entries } = parseStudentCsvRecords(text, defaultDepartment);
 
       if (entries.length === 0) {
@@ -449,14 +450,22 @@ export default function DepartmentManagement() {
       }
 
       let imported = 0;
+      const importedStudentIds = new Set<string>();
+      const activeDepartmentId = selectedDepartment || null;
+      const effectiveDepartmentName = defaultDepartment || (departments.find((department) => department.id === activeDepartmentId)?.name ?? '').trim();
+
       for (const record of entries) {
         const studentId = String(record.student_id).trim().replace(/\s+/g, '').replace(/^(\d{4})[-\s]?(\d{4,5})$/, '$1-$2');
         const name = String(record.name).trim();
-        const resolvedDepartment = (defaultDepartment || (record.department || '').trim()).trim();
+        const resolvedDepartment = (effectiveDepartmentName || (record.department || '').trim()).trim();
 
         if (!/^\d{4}-\d{4,5}$/.test(studentId) || !name || !resolvedDepartment) {
           continue;
         }
+
+        const studentKey = studentId.toLowerCase();
+        if (importedStudentIds.has(studentKey)) continue;
+        importedStudentIds.add(studentKey);
 
         const existing = await getStudentsByStudentId(studentId);
         if (existing) continue;
@@ -470,6 +479,7 @@ export default function DepartmentManagement() {
           age: Number(record.age) || 18,
           gender: validGender as 'Male' | 'Female' | 'Other',
           department: resolvedDepartment,
+          department_id: activeDepartmentId,
           address: record.address?.trim() || null
         });
 
@@ -477,7 +487,8 @@ export default function DepartmentManagement() {
       }
 
       toast.success(imported > 0 ? `Imported ${imported} student${imported === 1 ? '' : 's'} from CSV` : 'No new students were imported');
-      refetchStudents();
+      await refetchStudents();
+      await loadDepartments();
     } catch (error) {
       console.error('Student CSV import failed:', error);
       toast.error('Failed to import student CSV file');

@@ -11,40 +11,58 @@ function normalizeCsvValue(value: string | undefined) {
   return (value ?? '').trim();
 }
 
-function parseCsvLine(line: string) {
-  const result: string[] = [];
+function parseCsvRows(csvText: string) {
+  const rows: string[][] = [];
+  let row: string[] = [];
   let current = '';
   let inQuotes = false;
 
-  for (let i = 0; i < line.length; i += 1) {
-    const char = line[i];
+  for (let index = 0; index < csvText.length; index += 1) {
+    const char = csvText[index];
 
     if (char === '"') {
-      if (inQuotes && line[i + 1] === '"') {
+      if (inQuotes && csvText[index + 1] === '"') {
         current += '"';
-        i += 1;
+        index += 1;
       } else {
         inQuotes = !inQuotes;
       }
     } else if (char === ',' && !inQuotes) {
-      result.push(current.trim());
+      row.push(current.trim());
       current = '';
+    } else if ((char === '\n' || char === '\r') && !inQuotes) {
+      if (char === '\r' && csvText[index + 1] === '\n') index += 1;
+      row.push(current.trim());
+      current = '';
+      if (!rowLooksLikeBlank(row)) rows.push(row);
+      row = [];
     } else {
       current += char;
     }
   }
 
-  result.push(current.trim());
-  return result;
+  if (current.length > 0 || row.length > 0) {
+    row.push(current.trim());
+    if (!rowLooksLikeBlank(row)) rows.push(row);
+  }
+
+  return rows;
+}
+
+function isNumberingRow(row: string[]) {
+  const nonEmpty = row.filter((cell) => normalizeCsvValue(cell) !== '');
+  if (nonEmpty.length === 0) return true;
+  if (nonEmpty.length !== 1) return false;
+  return /^\d+$/.test(normalizeCsvValue(nonEmpty[0]));
 }
 
 function rowLooksLikeBlank(row: string[]) {
-  return row.every((cell) => normalizeCsvValue(cell) === '');
+  return row.every((cell) => normalizeCsvValue(cell) === '') || isNumberingRow(row);
 }
 
 function looksLikeHeaderRow(row: string[]) {
   const lower = row.map((cell) => cell.toLowerCase().trim());
-  return lower.some((value) => ['student_id', 'id number', 'name', 'age', 'gender', 'sex', 'department', 'address'].includes(value));
+  return lower.some((value) => ['student_id', 'id number', 'no', 'no.', 'name', 'age', 'gender', 'sex', 'department', 'address'].includes(value));
 }
 
 function normalizeStudentId(value: string) {
@@ -75,12 +93,7 @@ function isTitleRow(row: string[]) {
 }
 
 export function parseStudentCsvRecords(csvText: string, defaultDepartment?: string) {
-  const rows = csvText
-    .split(/\r?\n/)
-    .map((row) => row.trim())
-    .filter((row) => row.length > 0)
-    .map(parseCsvLine)
-    .filter((row) => !rowLooksLikeBlank(row));
+  const rows = parseCsvRows(csvText);
 
   if (rows.length === 0) {
     return { header: [], records: [] as ParsedStudentCsvRow[] };
@@ -106,7 +119,7 @@ export function parseStudentCsvRecords(csvText: string, defaultDepartment?: stri
         });
 
         const studentId = normalizeStudentId(map['student_id'] || map['id number'] || map['id']);
-        const name = normalizeCsvValue(map['name']);
+        const name = normalizeCsvValue(map['name']).replace(/\s+/g, ' ');
 
         if (!isLikelyStudentId(studentId) || !name) return null;
 
@@ -121,7 +134,7 @@ export function parseStudentCsvRecords(csvText: string, defaultDepartment?: stri
       }
 
       const studentId = normalizeStudentId(row[2] || row[1] || row[0]);
-      const name = normalizeCsvValue(row[1] || row[0]);
+      const name = normalizeCsvValue(row[1] || row[0]).replace(/\s+/g, ' ');
       if (!isLikelyStudentId(studentId) || !name) return null;
 
       return {
@@ -135,5 +148,11 @@ export function parseStudentCsvRecords(csvText: string, defaultDepartment?: stri
     })
     .filter((record): record is ParsedStudentCsvRow => Boolean(record));
 
-  return { header, records };
+  const uniqueRecords = new Map<string, ParsedStudentCsvRow>();
+  records.forEach((record) => {
+    const key = normalizeStudentId(record.student_id).toLowerCase();
+    if (!uniqueRecords.has(key)) uniqueRecords.set(key, record);
+  });
+
+  return { header, records: Array.from(uniqueRecords.values()) };
 }

@@ -445,21 +445,33 @@ export async function getDepartments() {
 
   if (deptError) throw deptError;
 
-  // Count active non-deleted students per department using the FK column.
-  // This is an exact match — no fuzzy string logic needed.
+  // Count active non-deleted students per department using the FK column when available,
+  // and fall back to name matching for older rows that still only store department text.
   const { data: counts, error: countError } = await supabase
     .from("students")
-    .select("department_id")
+    .select("department_id, department")
     .is("deleted_at", null)
-    .eq("is_archived", false)
-    .not("department_id", "is", null);
+    .eq("is_archived", false);
 
   if (countError) throw countError;
 
   const departmentCounts = new Map<string, number>();
+  const deptNameMap = new Map<string, string>();
+  for (const dept of departments || []) {
+    deptNameMap.set(normalizeDepartmentKey(dept.name), dept.id);
+  }
+
   for (const row of counts || []) {
-    if (!row.department_id) continue;
-    departmentCounts.set(row.department_id, (departmentCounts.get(row.department_id) || 0) + 1);
+    if (row.department_id) {
+      departmentCounts.set(row.department_id, (departmentCounts.get(row.department_id) || 0) + 1);
+      continue;
+    }
+
+    const normalizedDepartment = normalizeDepartmentKey(row.department);
+    const matchedId = normalizedDepartment ? deptNameMap.get(normalizedDepartment) : null;
+    if (matchedId) {
+      departmentCounts.set(matchedId, (departmentCounts.get(matchedId) || 0) + 1);
+    }
   }
 
   return (departments || []).map((dept: any) => ({

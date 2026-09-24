@@ -11,32 +11,21 @@ export function useStudentProfile() {
 
   const fetchProfile = useCallback(async () => {
     if (!user?.studentId) {
+      setStudent(null);
       setLoading(false);
       return;
     }
 
     try {
       setLoading(true);
-      // Try to fetch by ID (UUID) first
-      let { data, error } = await supabase
+      // user.studentId is the UUID stored in user_roles.student_id.
+      const { data, error } = await supabase
         .from("students")
         .select("*")
         .eq("id", user.studentId)
         .maybeSingle();
 
       if (error) throw error;
-
-      // If not found by UUID, try by student_id (string) just in case
-      if (!data) {
-        const { data: altData, error: altError } = await supabase
-          .from("students")
-          .select("*")
-          .eq("student_id", user.studentId)
-          .maybeSingle();
-        
-        if (altError) throw altError;
-        data = altData;
-      }
 
       setStudent(data);
       setError(null);
