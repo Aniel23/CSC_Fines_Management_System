@@ -124,7 +124,7 @@ export default function StudentTransactionsPage() {
   const totalAmount = studentFines.reduce((sum, f) => sum + f.amount, 0);
   const totalBalance = studentFines.reduce((sum, f) => sum + f.balance, 0);
   const paidCount = studentFines.filter((f) => f.status === "Paid").length;
-  const pendingCount = studentFines.filter((f) => f.status === "Pending").length;
+  const pendingCount = studentFines.filter((f) => f.status !== "Paid").length;
 
   return (
     <AppLayout>
@@ -221,17 +221,17 @@ export default function StudentTransactionsPage() {
                         <p className="text-xs text-muted-foreground uppercase font-semibold">Status</p>
                         <Badge
                           className={
-                            trans.fines?.status === "Paid"
-                              ? "bg-success"
-                              : "bg-warning text-white"
+                            trans.fines?.status === "Pending"
+                              ? "bg-warning text-white"
+                              : "bg-success"
                           }
                         >
-                          {trans.fines?.status === "Paid" ? "Approved" : "Pending Approval"}
+                          {trans.fines?.status === "Pending" ? "Pending Approval" : "Approved"}
                         </Badge>
                       </div>
 
                       <div className="col-span-2 md:col-span-1 flex justify-end">
-                        {trans.fines?.status === "Paid" ? (
+                        {trans.fines?.status !== "Pending" ? (
                           <Button 
                             variant="outline" 
                             size="sm"
