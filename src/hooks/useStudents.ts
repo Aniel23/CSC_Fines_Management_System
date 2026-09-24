@@ -41,7 +41,26 @@ export function useStudents(departmentId?: string, filter: StudentsFilter = 'act
 
       if (fetchError) throw fetchError;
 
-      setStudents((data || []) as Student[]);
+      const { data: roleAvatars, error: avatarError } = await supabase
+        .from("user_roles")
+        .select("student_id, avatar_url")
+        .eq("role", "student")
+        .not("avatar_url", "is", null);
+
+      if (avatarError) {
+        console.warn("Could not load student profile pictures:", avatarError.message);
+      }
+
+      const avatarByStudentId = new Map(
+        (roleAvatars || [])
+          .filter((role) => role.student_id && role.avatar_url)
+          .map((role) => [role.student_id, role.avatar_url])
+      );
+
+      setStudents((data || []).map((student) => ({
+        ...student,
+        photo_url: student.photo_url || avatarByStudentId.get(student.id),
+      })) as Student[]);
       setError(null);
     } catch (err) {
       console.error("Error fetching students:", err);
