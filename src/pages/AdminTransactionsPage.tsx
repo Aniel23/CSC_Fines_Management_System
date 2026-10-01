@@ -14,6 +14,7 @@ import { formatDistanceToNow } from "date-fns";
 import { useState, useEffect, useMemo } from "react";
 import { useFines } from "@/hooks/useFines";
 import { useStudents } from "@/hooks/useStudents";
+import { useTransactions } from "@/hooks/useTransactions";
 import { DEFAULT_DEPARTMENTS } from "@/lib/constants";
 import { 
   getUniqueStudentDepartments, 
@@ -21,10 +22,18 @@ import {
 } from "@/integrations/supabase/queries";
 import { usePagination } from "@/hooks/usePagination";
 import { PaginationBar } from "@/components/shared/PaginationBar";
+import { getDisplayPaidAmount, getVoucherCode } from "@/lib/voucher";
 
 export default function AdminTransactionsPage() {
   const { fines, loading: finesLoading, error: finesError } = useFines('all');
   const { students, loading: studentsLoading, error: studentsError } = useStudents();
+  const { transactions, loading: transactionsLoading, error: transactionsError } = useTransactions();
+  const latestTransactionByFineId = new Map<string, (typeof transactions)[number]>();
+  transactions.forEach((transaction) => {
+    if (transaction.fine_id && !latestTransactionByFineId.has(transaction.fine_id)) {
+      latestTransactionByFineId.set(transaction.fine_id, transaction);
+    }
+  });
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [selectedDepartment, setSelectedDepartment] = useState<string>("");
   const [selectedStatus, setSelectedStatus] = useState<string>("");
@@ -94,7 +103,7 @@ export default function AdminTransactionsPage() {
 
   const { paged: pagedFines, currentPage, setCurrentPage, totalPages, pageSize } = usePagination(recentFines);
 
-  if (finesLoading || studentsLoading) {
+  if (finesLoading || studentsLoading || transactionsLoading) {
     return (
       <AppLayout>
         <div className="content-wrapper pt-0 flex items-center justify-center min-h-96">
@@ -107,7 +116,7 @@ export default function AdminTransactionsPage() {
     );
   }
 
-  if (finesError || studentsError) {
+  if (finesError || studentsError || transactionsError) {
     return (
       <AppLayout>
         <Card className="border-destructive/50 bg-destructive/5">
@@ -115,7 +124,7 @@ export default function AdminTransactionsPage() {
             <CardTitle className="text-destructive">Error Loading Data</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-destructive/80">{finesError || studentsError}</p>
+            <p className="text-sm text-destructive/80">{finesError || studentsError || transactionsError}</p>
           </CardContent>
         </Card>
       </AppLayout>
@@ -311,7 +320,18 @@ export default function AdminTransactionsPage() {
 
                       <div className="flex flex-col items-start md:items-center md:text-center">
                         <p className="font-semibold">₱{fine.amount.toFixed(2)}</p>
-                        <p className="text-xs text-muted-foreground">Amount</p>
+                        {(() => {
+                          const transaction = latestTransactionByFineId.get(fine.id);
+                          const voucherCode = getVoucherCode(fine.voucher_used, transaction?.notes);
+                          const discountedAmount = getDisplayPaidAmount(transaction, fine.original_amount);
+                          return voucherCode ? (
+                            <div className="mt-1 text-xs text-success">
+                              Voucher: {voucherCode}
+                              {discountedAmount !== null && <div>Paid: ₱{discountedAmount.toFixed(2)}</div>}
+                            </div>
+                          ) : null;
+                        })()}
+                        <p className="text-xs text-muted-foreground">Fine Amount</p>
                       </div>
 
                       <div className="flex flex-col items-start md:items-center md:text-center">

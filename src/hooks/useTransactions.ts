@@ -9,6 +9,8 @@ export interface TransactionWithDetails {
   payment_date: string;
   notes: string | null;
   recorded_by: string | null;
+  voucher_used?: string | null;
+  original_amount?: number | null;
   fines: (Fine & { students: Student | null }) | null;
 }
 

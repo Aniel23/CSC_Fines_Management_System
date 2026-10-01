@@ -11,19 +11,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useFines } from "@/hooks/useFines";
 import { useStudents } from "@/hooks/useStudents";
+import { useTransactions } from "@/hooks/useTransactions";
 import { useAuth } from "@/contexts/AuthContext";
 import { FINE_TYPES as fineTypes } from "@/lib/constants";
 
 export default function TransactionsPage() {
   const { user } = useAuth();
-  const { fines, loading: finesLoading, error: finesError } = useFines();
+  const { transactions, loading: transactionsLoading, error: transactionsError } = useTransactions();
   const { students, loading: studentsLoading, error: studentsError } = useStudents();
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [selectedFineType, setSelectedFineType] = useState<string>("all");
 
-  if (finesLoading || studentsLoading) {
+  if (transactionsLoading || studentsLoading) {
     return (
       <AppLayout>
         <div className="content-wrapper pt-0 flex items-center justify-center min-h-96">
@@ -36,7 +36,7 @@ export default function TransactionsPage() {
     );
   }
 
-  if (finesError || studentsError) {
+  if (transactionsError || studentsError) {
     return (
       <AppLayout>
         <div className="content-wrapper pt-0">
@@ -45,7 +45,7 @@ export default function TransactionsPage() {
               <CardTitle className="text-destructive">Error Loading Data</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-destructive/80">{finesError || studentsError}</p>
+              <p className="text-sm text-destructive/80">{transactionsError || studentsError}</p>
             </CardContent>
           </Card>
         </div>
@@ -73,13 +73,8 @@ export default function TransactionsPage() {
     );
   }
   
-  // For students, show only their transactions
-  // For admins, show all transactions
-  // fines.student_id is the UUID (foreign key to students.id)
-  let displayFines = fines.map((fine) => ({
-    ...fine,
-    student: students.find((s) => s.id === fine.student_id),
-  }));
+  // This page shows payment transactions (net amount paid), not the fine's face value.
+  let displayTransactions = transactions;
 
   let isStudentView = false;
   let studentName = "";
@@ -90,17 +85,23 @@ export default function TransactionsPage() {
     const currentStudent = students.find((s) => s.id === user?.studentId) || students.find((s) => s.student_id === user?.studentId);
     if (currentStudent) {
       studentName = currentStudent.name;
-      displayFines = displayFines.filter((f) => f.student_id === currentStudent.id);
+      displayTransactions = displayTransactions.filter((transaction) =>
+        transaction.fines?.student_id === currentStudent.id,
+      );
     }
   }
 
   // Apply filters
   if (selectedStatus !== "all") {
-    displayFines = displayFines.filter((f) => f.status === selectedStatus);
+    displayTransactions = displayTransactions.filter((transaction) =>
+      transaction.fines?.status === selectedStatus,
+    );
   }
 
   if (selectedFineType !== "all") {
-    displayFines = displayFines.filter((f) => f.fine_type === selectedFineType);
+    displayTransactions = displayTransactions.filter((transaction) =>
+      transaction.fines?.fine_type === selectedFineType,
+    );
   }
 
   return (
@@ -139,6 +140,7 @@ export default function TransactionsPage() {
                     <SelectItem value="all">All Status</SelectItem>
                     <SelectItem value="Paid">Paid</SelectItem>
                     <SelectItem value="Pending">Pending</SelectItem>
+                    <SelectItem value="To Pay">To Pay</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -169,26 +171,32 @@ export default function TransactionsPage() {
           <CardHeader>
             <CardTitle className="font-display flex items-center gap-2">
               <Clock className="h-5 w-5" />
-              {isStudentView ? "Your Recent Fines" : "Latest Recorded Fines"}
+              {isStudentView ? "Your Recent Payments" : "Latest Recorded Payments"}
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {displayFines.length > 0 ? (
+            {displayTransactions.length > 0 ? (
               <div className="space-y-4">
-                {displayFines.map((fine) => (
+                {displayTransactions.map((transaction) => {
+                  const fine = transaction.fines;
+                  const student = fine?.students;
+                  const hasVoucherDiscount = transaction.original_amount != null &&
+                    transaction.original_amount > transaction.amount_paid;
+
+                  return (
                   <div
-                    key={fine.id}
+                    key={transaction.id}
                     className="flex flex-col md:flex-row items-start md:items-center justify-between p-4 rounded-lg border border-border hover:bg-muted/30 transition-colors"
                   >
                     {!isStudentView && (
                       <div className="flex items-center gap-4 w-full md:w-auto mb-3 md:mb-0">
                         <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center font-semibold text-primary">
-                          {fine.student?.name?.[0] || "?"}
+                          {student?.name?.[0] || "?"}
                         </div>
                         <div>
-                          <p className="font-medium">{fine.student?.name}</p>
+                          <p className="font-medium">{student?.name}</p>
                           <p className="text-sm text-muted-foreground">
-                            {fine.student?.student_id} • {fine.student?.department}
+                            {student?.student_id} • {student?.department}
                           </p>
                         </div>
                       </div>
@@ -196,39 +204,48 @@ export default function TransactionsPage() {
 
                     <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-4 w-full md:w-auto">
                       <div className="flex flex-col items-start md:items-center md:text-center">
-                        <p className="text-sm font-medium">{fine.fine_type}</p>
+                        <p className="text-sm font-medium">{fine?.fine_type || "Fine Payment"}</p>
                         <p className="text-xs text-muted-foreground">Fine Type</p>
                       </div>
 
                       <div className="flex flex-col items-start md:items-center md:text-center">
-                        <p className="font-semibold">₱{fine.amount.toFixed(2)}</p>
-                        <p className="text-xs text-muted-foreground">Amount</p>
+                        <p className="font-semibold">₱{transaction.amount_paid.toFixed(2)}</p>
+                        {hasVoucherDiscount && (
+                          <p className="text-xs text-muted-foreground">
+                            Before voucher: ₱{transaction.original_amount!.toFixed(2)}
+                          </p>
+                        )}
+                        {transaction.voucher_used && (
+                          <p className="text-xs text-success">Voucher: {transaction.voucher_used}</p>
+                        )}
+                        <p className="text-xs text-muted-foreground">Paid Amount</p>
                       </div>
 
                       <div className="flex flex-col items-start md:items-center md:text-center">
                         <Badge
                           className={
-                            fine.status === "Paid" ? "status-paid" : "status-pending"
+                            fine?.status === "Paid" ? "status-paid" : fine?.status === "Pending" ? "status-pending" : ""
                           }
                         >
-                          {fine.status}
+                          {fine?.status === "Pending" ? "Pending Approval" : fine?.status || "Unknown"}
                         </Badge>
                         <p className="text-xs text-muted-foreground mt-1">Status</p>
                       </div>
 
                       <div className="flex flex-col items-start md:items-center md:text-center">
                         <p className="text-sm text-muted-foreground">
-                          {formatDistanceToNow(new Date(fine.created_at), {
+                          {formatDistanceToNow(new Date(transaction.payment_date), {
                             addSuffix: true,
                           })}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {new Date(fine.created_at).toLocaleDateString()}
+                          {new Date(transaction.payment_date).toLocaleDateString()}
                         </p>
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="text-center py-12">

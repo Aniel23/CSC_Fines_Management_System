@@ -9,6 +9,7 @@ import { useStudents } from "@/hooks/useStudents";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTransactions } from "@/hooks/useTransactions";
 import { useState } from "react";
+import { getDisplayPaidAmount, getVoucherCode } from "@/lib/voucher";
 
 export default function StudentTransactionsPage() {
   const { user } = useAuth();
@@ -107,10 +108,12 @@ export default function StudentTransactionsPage() {
     const notes = transaction.notes || "";
     const methodMatch = notes.match(/Method: ([^,]+)/);
     const refMatch = notes.match(/Ref: ([^,]+)/);
+    const displayedAmount = getDisplayPaidAmount(transaction, transaction.fines?.original_amount)
+      ?? transaction.amount_paid;
     
     setCurrentReceipt({
       referenceNumber: refMatch ? refMatch[1] : "N/A",
-      amount: transaction.amount_paid,
+      amount: displayedAmount,
       date: transaction.payment_date,
       method: methodMatch ? methodMatch[1] : "N/A",
       fine: transaction.fines,
@@ -199,6 +202,15 @@ export default function StudentTransactionsPage() {
                     key={trans.id}
                     className="flex flex-col md:flex-row items-start md:items-center justify-between p-4 rounded-lg border border-border hover:bg-muted/30 transition-colors gap-4"
                   >
+                    {(() => {
+                      const voucherCode = getVoucherCode(trans.voucher_used, trans.notes);
+                      const displayedAmount = getDisplayPaidAmount(trans, trans.fines?.original_amount)
+                        ?? trans.amount_paid;
+                      const originalAmount = trans.original_amount ?? trans.fines?.original_amount;
+                      const hasDiscount = originalAmount != null && originalAmount > displayedAmount;
+
+                      return (
+                        <>
                     <div className="flex items-start gap-4 w-full md:w-auto">
                       <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
                         <Receipt className="h-5 w-5" />
@@ -214,7 +226,15 @@ export default function StudentTransactionsPage() {
                     <div className="flex-1 grid grid-cols-2 md:grid-cols-3 gap-4 w-full md:w-auto items-center">
                       <div>
                         <p className="text-xs text-muted-foreground uppercase font-semibold">Amount</p>
-                        <p className="font-bold">₱{trans.amount_paid.toLocaleString()}</p>
+                        <p className="font-bold">₱{displayedAmount.toLocaleString()}</p>
+                        {hasDiscount && (
+                          <p className="text-xs text-muted-foreground">
+                            Before voucher: ₱{originalAmount!.toLocaleString()}
+                          </p>
+                        )}
+                        {voucherCode && (
+                          <p className="text-xs text-success">Voucher: {voucherCode}</p>
+                        )}
                       </div>
 
                       <div>
@@ -247,6 +267,9 @@ export default function StudentTransactionsPage() {
                         )}
                       </div>
                     </div>
+                        </>
+                      );
+                    })()}
                   </div>
                 ))}
               </div>

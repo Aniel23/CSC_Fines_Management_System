@@ -22,6 +22,7 @@ import { useState, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import { useFines } from "@/hooks/useFines";
 import { useStudents } from "@/hooks/useStudents";
+import { useTransactions } from "@/hooks/useTransactions";
 import { getUniqueStudentDepartments, getDepartments } from "@/integrations/supabase/queries";
 import { DEFAULT_DEPARTMENTS, GENDERS as genders } from "@/lib/constants";
 import type { Student, FineStatus } from "@/types";
@@ -50,11 +51,19 @@ import { Archive, Trash2 as TrashIcon, RefreshCw } from "lucide-react";
 import { binFine, restoreFine, archiveFine, unarchiveFine } from "@/integrations/supabase/queries";
 import { usePagination } from "@/hooks/usePagination";
 import { PaginationBar } from "@/components/shared/PaginationBar";
+import { getDisplayPaidAmount, getVoucherCode } from "@/lib/voucher";
 
 export default function AdminFinesPage() {
   const [viewFilter, setViewFilter] = useState<"active" | "archived">("active");
   const { fines: allFines, loading: finesLoading, error: finesError, refetch } = useFines('all');
   const { students, loading: studentsLoading, error: studentsError } = useStudents();
+  const { transactions } = useTransactions();
+  const latestTransactionByFineId = new Map<string, (typeof transactions)[number]>();
+  transactions.forEach((transaction) => {
+    if (transaction.fine_id && !latestTransactionByFineId.has(transaction.fine_id)) {
+      latestTransactionByFineId.set(transaction.fine_id, transaction);
+    }
+  });
   const [departments, setDepartments] = useState<string[]>([]);
   const [selectedDepartment, setSelectedDepartment] = useState<string>("");
   const [selectedStatus, setSelectedStatus] = useState<string>("");
@@ -97,6 +106,7 @@ export default function AdminFinesPage() {
       setUpdatingId(fine.id);
       
       const paymentAmount = fine.pending_payment || fine.balance;
+      let actualPaymentAmount = paymentAmount;
       const newBalance = Math.max(0, fine.balance - paymentAmount);
       const newStatus = newBalance === 0 ? "Paid" : "To Pay";
 
@@ -104,12 +114,13 @@ export default function AdminFinesPage() {
       try {
         const { data: transactions } = await supabase
           .from("transactions")
-          .select("notes, voucher_used")
+          .select("notes, voucher_used, amount_paid, original_amount")
           .eq("fine_id", fine.id)
           .order("payment_date", { ascending: false })
           .limit(1);
 
         if (transactions && transactions.length > 0) {
+          actualPaymentAmount = Number(transactions[0].amount_paid ?? paymentAmount);
           const note = transactions[0].notes || "";
           const voucherUsed = transactions[0].voucher_used;
           
@@ -194,7 +205,9 @@ export default function AdminFinesPage() {
         const { error: notifError } = await supabase.from("notifications").insert({
           user_id: roleData.user_id, // Use the correct auth user ID
           title: "Payment Approved",
-          message: `Your payment of ₱${paymentAmount.toFixed(2)} for ${fine.fine_type} has been approved.`,
+          message: actualPaymentAmount < paymentAmount
+            ? `Your discounted payment of ₱${actualPaymentAmount.toFixed(2)} (₱${paymentAmount.toFixed(2)} fine balance settled with voucher) for ${fine.fine_type} has been approved.`
+            : `Your payment of ₱${actualPaymentAmount.toFixed(2)} for ${fine.fine_type} has been approved.`,
           type: "approval",
           actor_name: "Admin"
         });
@@ -644,7 +657,20 @@ export default function AdminFinesPage() {
                           <TableCell>{fine.student?.name}</TableCell>
                           <TableCell>{fine.student?.department}</TableCell>
                           <TableCell>{fine.fine_type}</TableCell>
-                          <TableCell>₱{fine.amount.toFixed(2)}</TableCell>
+                          <TableCell>
+                            <div>₱{fine.amount.toFixed(2)}</div>
+                            {(() => {
+                              const transaction = latestTransactionByFineId.get(fine.id);
+                              const voucherCode = getVoucherCode(fine.voucher_used, transaction?.notes);
+                              const discountedAmount = getDisplayPaidAmount(transaction, fine.original_amount);
+                              return voucherCode ? (
+                                <div className="mt-1 text-xs text-success">
+                                  Voucher: {voucherCode}
+                                  {discountedAmount !== null && <div>Paid: ₱{discountedAmount.toFixed(2)}</div>}
+                                </div>
+                              ) : null;
+                            })()}
+                          </TableCell>
                           <TableCell className="font-medium">
                             {fine.status === 'Pending' && fine.pending_payment ? (
                               <div className="flex flex-col">
@@ -925,6 +951,17 @@ export default function AdminFinesPage() {
                               <p className="text-muted-foreground">Amount</p>
                               <p className="font-medium">
                                 ₱{fine.amount.toFixed(2)}
+                                {(() => {
+                                  const transaction = latestTransactionByFineId.get(fine.id);
+                                  const voucherCode = getVoucherCode(fine.voucher_used, transaction?.notes);
+                                  const discountedAmount = getDisplayPaidAmount(transaction, fine.original_amount);
+                                  return voucherCode ? (
+                                    <span className="block text-xs text-success">
+                                      Voucher: {voucherCode}
+                                      {discountedAmount !== null && <span className="block">Paid: ₱{discountedAmount.toFixed(2)}</span>}
+                                    </span>
+                                  ) : null;
+                                })()}
                               </p>
                             </div>
                             <div className="text-right">
@@ -1056,6 +1093,19 @@ export default function AdminFinesPage() {
                         <span className="text-muted-foreground font-bold">Payment Amount:</span>
                         <span className="font-bold text-lg text-primary">₱{(confirmingFine.pending_payment || confirmingFine.balance).toFixed(2)}</span>
                       </div>
+                      {(() => {
+                        const transaction = latestTransactionByFineId.get(confirmingFine.id);
+                        const voucherCode = getVoucherCode(confirmingFine.voucher_used, transaction?.notes);
+                        const discountedAmount = getDisplayPaidAmount(transaction, confirmingFine.original_amount);
+                        return voucherCode ? (
+                          <div className="flex justify-between gap-3 text-sm border-t pt-2">
+                            <span className="text-success">Voucher {voucherCode} · student pays:</span>
+                            <span className="font-bold text-success">
+                              ₱{(discountedAmount ?? 0).toFixed(2)}
+                            </span>
+                          </div>
+                        ) : null;
+                      })()}
                     </div>
                     
                     <p className="text-xs text-muted-foreground italic">

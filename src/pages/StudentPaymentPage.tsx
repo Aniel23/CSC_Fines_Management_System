@@ -35,6 +35,7 @@ import { useTransactions } from "@/hooks/useTransactions";
 import { useAppSettings } from "@/hooks/useAppSettings";
 import PaymentGateway from "@/components/payment/PaymentGateway";
 import type { PaymentResponse } from "@/lib/payment";
+import { calculateVoucherPaymentLines } from "@/lib/voucher";
  
 interface Voucher {
   id: string;
@@ -67,14 +68,16 @@ export default function StudentPaymentPage() {
   const [isCscModalOpen, setIsCscModalOpen] = useState(false);
   const [voucherCode, setVoucherCode] = useState("");
   const [appliedVoucher, setAppliedVoucher] = useState<Voucher | null>(null);
-  const [showVoucherConfirmDialog, setShowVoucherConfirmDialog] = useState(false);
-  const [pendingVoucher, setPendingVoucher] = useState<Voucher | null>(null);
   const [showPaymentGateway, setShowPaymentGateway] = useState(false);
 
-  // Calculate selected amount based on payment amounts (Moved up to be accessible for useEffect)
-  const subtotalAmount = selectedFines.reduce((sum, id) => sum + (paymentAmounts[id] || 0), 0);
-  const voucherDiscount = appliedVoucher ? Math.round(subtotalAmount * (appliedVoucher.amount / 100)) : 0;
-  const selectedAmount = Math.max(0, subtotalAmount - voucherDiscount);
+  const paymentLines = calculateVoucherPaymentLines(
+    selectedFines.map((fineId) => ({ fineId, amount: paymentAmounts[fineId] ?? 0 })),
+    appliedVoucher?.amount,
+  );
+  const paymentLinesByFineId = new Map(paymentLines.map((line) => [line.fineId, line]));
+  const subtotalAmount = paymentLines.reduce((sum, line) => sum + line.originalAmount, 0);
+  const voucherDiscount = paymentLines.reduce((sum, line) => sum + line.discountAmount, 0);
+  const selectedAmount = paymentLines.reduce((sum, line) => sum + line.amountToPay, 0);
 
   useEffect(() => {
     if (settings.voucher_codes) {
@@ -212,13 +215,6 @@ export default function StudentPaymentPage() {
         return;
       }
 
-      // Validation 3: Amount check - if voucher exceeds amount, show confirmation
-      if (voucher.amount > subtotalAmount) {
-        setPendingVoucher(voucher);
-        setShowVoucherConfirmDialog(true);
-        return;
-      }
-
       setAppliedVoucher(voucher);
       toast.success(`Voucher applied: ${voucher.description}`);
       setVoucherCode(""); // Clear input on success
@@ -226,22 +222,6 @@ export default function StudentPaymentPage() {
       toast.error("Invalid or inactive voucher code");
       setAppliedVoucher(null);
     }
-  };
-
-  const handleConfirmVoucher = () => {
-    if (pendingVoucher) {
-      setAppliedVoucher(pendingVoucher);
-      toast.success(`Voucher applied: ${pendingVoucher.description}`);
-      setVoucherCode("");
-      setPendingVoucher(null);
-      setShowVoucherConfirmDialog(false);
-    }
-  };
-
-  const handleCancelVoucher = () => {
-    setPendingVoucher(null);
-    setShowVoucherConfirmDialog(false);
-    setVoucherCode("");
   };
 
   const handleRemoveVoucher = () => {
@@ -332,10 +312,15 @@ export default function StudentPaymentPage() {
         if (!fine) return;
 
         // 1. Update fine status to "Pending" (Awaiting Approval)
-        const amountToPay = paymentAmounts[fineId] || fine.balance;
+        const paymentLine = paymentLinesByFineId.get(fineId);
+        const originalAmount = paymentLine?.originalAmount ?? fine.balance;
+        const amountToPay = paymentLine?.amountToPay ?? originalAmount;
+        const discountAmount = paymentLine?.discountAmount ?? 0;
         await updateFine(fineId, { 
           status: "Pending",
-          pending_payment: amountToPay
+          pending_payment: originalAmount,
+          voucher_used: appliedVoucher?.code ?? null,
+          original_amount: originalAmount,
         });
 
         // 2. Create a transaction record with payment gateway info
@@ -343,7 +328,9 @@ export default function StudentPaymentPage() {
           fine_id: fineId,
           amount_paid: amountToPay,
           payment_date: new Date().toISOString(),
-          notes: `Gateway: ${paymentResponse.id}, Ref: ${paymentResponse.referenceNumber}, Status: Pending Approval${appliedVoucher ? ` | Voucher: ${appliedVoucher.code} (-${appliedVoucher.amount}%)` : ''}`
+          notes: `Gateway: ${paymentResponse.id}, Ref: ${paymentResponse.referenceNumber}, Status: Pending Approval${appliedVoucher ? ` | Voucher: ${appliedVoucher.code} (-${appliedVoucher.amount}%, ₱${discountAmount.toFixed(2)} off)` : ''}`,
+          voucher_used: appliedVoucher?.code ?? null,
+          original_amount: originalAmount,
         });
       });
 
@@ -389,7 +376,7 @@ export default function StudentPaymentPage() {
     try {
       setIsSubmitting(true);
       
-      let uploadedProofUrls: string[] = [];
+      const uploadedProofUrls: string[] = [];
 
       // Handle file upload if CSC Slip (only if payment method is CSC-Slip and amount > 0)
       if (selectedAmount > 0 && paymentMethod === "CSC-Slip" && proofImages.length > 0) {
@@ -426,16 +413,19 @@ export default function StudentPaymentPage() {
         const fine = toPayFines.find((f) => f.id === fineId);
         if (!fine) return;
 
-        const amountToPay = paymentAmounts[fineId] || fine.balance;
+        const paymentLine = paymentLinesByFineId.get(fineId);
+        const originalAmount = paymentLine?.originalAmount ?? fine.balance;
+        const amountToPay = paymentLine?.amountToPay ?? originalAmount;
+        const discountAmount = paymentLine?.discountAmount ?? 0;
         
         // 1. Update fine status to "Pending"
         await updateFine(fineId, { 
           status: "Pending",
           payment_proof: uploadedProofUrls.length > 0 ? uploadedProofUrls[0] : null, // Keep first for backward compatibility
           payment_proofs: uploadedProofUrls.length > 0 ? uploadedProofUrls : null,
-          pending_payment: amountToPay,
+          pending_payment: originalAmount,
           voucher_used: appliedVoucher ? appliedVoucher.code : null,
-          original_amount: amountToPay
+          original_amount: originalAmount
         });
 
         // 2. Create a transaction record
@@ -443,16 +433,16 @@ export default function StudentPaymentPage() {
           fine_id: fineId,
           amount_paid: amountToPay,
           payment_date: new Date().toISOString(),
-          notes: `Method: ${actualPaymentMethod}, Ref: ${referenceNumber}, Status: Pending Approval${uploadedProofUrls.length > 0 ? ' (With Proof)' : ''}${appliedVoucher ? ` | Voucher: ${appliedVoucher.code} (-${appliedVoucher.amount}%)` : ''}`,
+          notes: `Method: ${actualPaymentMethod}, Ref: ${referenceNumber}, Status: Pending Approval${uploadedProofUrls.length > 0 ? ' (With Proof)' : ''}${appliedVoucher ? ` | Voucher: ${appliedVoucher.code} (-${appliedVoucher.amount}%, ₱${discountAmount.toFixed(2)} off)` : ''}`,
           voucher_used: appliedVoucher ? appliedVoucher.code : null,
-          original_amount: amountToPay
+          original_amount: originalAmount
         });
 
         // 3. Create notification for admins
         const { error: notifError } = await supabase.from("notifications").insert({
           user_id: user?.id, // Note: We attach the student's ID, but the query in NotificationsMenu allows admins to see ALL notifications
           title: "New Payment Submitted",
-          message: `${user?.name || 'A student'} submitted a payment of ₱${amountToPay} for ${fine.fine_type}.`,
+          message: `${user?.name || 'A student'} submitted a payment of ₱${amountToPay.toFixed(2)} for ${fine.fine_type}${discountAmount > 0 ? ` (₱${originalAmount.toFixed(2)} covered with voucher)` : ''}.`,
           type: "payment",
           actor_name: user?.name
         });
@@ -1130,36 +1120,6 @@ export default function StudentPaymentPage() {
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setIsCscModalOpen(false)}>Close</Button>
                 <Button onClick={() => setIsCscModalOpen(false)}>Done</Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        {/* Voucher Confirmation Dialog */}
-        <Dialog open={showVoucherConfirmDialog} onOpenChange={setShowVoucherConfirmDialog}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <AlertCircle className="h-5 w-5 text-warning" />
-                Voucher Amount Exceeds Payment
-              </DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="p-4 bg-warning/10 rounded-lg border border-warning/20">
-                <p className="text-sm text-foreground">
-                  Your voucher discount (<span className="font-bold">{pendingVoucher?.amount}%</span>) will be applied to the total payment amount (<span className="font-bold">₱{subtotalAmount.toFixed(2)}</span>).
-                </p>
-                <p className="text-sm text-muted-foreground mt-2">
-                  This voucher can only be used once. Any excess amount will not be refunded or carried over.
-                </p>
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={handleCancelVoucher}>
-                  Cancel
-                </Button>
-                <Button onClick={handleConfirmVoucher} className="bg-warning hover:bg-warning/90">
-                  Use Voucher Anyway
-                </Button>
               </div>
             </div>
           </DialogContent>

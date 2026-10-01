@@ -11,6 +11,7 @@ import {
 import { AlertCircle, CheckCircle, FileText, Loader, Eye, ExternalLink } from "lucide-react";
 import { useFines } from "@/hooks/useFines";
 import { useStudents } from "@/hooks/useStudents";
+import { useTransactions } from "@/hooks/useTransactions";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   Dialog,
@@ -28,13 +29,22 @@ import { archiveFine, unarchiveFine, binFine, restoreFine, deleteFine } from "@/
 import { toast } from "sonner";
 import { usePagination } from "@/hooks/usePagination";
 import { PaginationBar } from "@/components/shared/PaginationBar";
+import { getDisplayPaidAmount, getVoucherCode } from "@/lib/voucher";
 
 export default function StudentFinesPage() {
   const { user } = useAuth();
   const [viewFilter, setViewFilter] = useState<"active" | "archived" | "binned">("active");
   const { fines, loading: finesLoading, error: finesError, refetch } = useFines(viewFilter);
   const { students: mockStudents, loading: studentsLoading } = useStudents();
+  const { transactions } = useTransactions();
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  const latestTransactionByFineId = new Map<string, (typeof transactions)[number]>();
+  transactions.forEach((transaction) => {
+    if (transaction.fine_id && !latestTransactionByFineId.has(transaction.fine_id)) {
+      latestTransactionByFineId.set(transaction.fine_id, transaction);
+    }
+  });
 
   const handleArchiveFine = async (fineId: string) => {
     try {
@@ -289,7 +299,7 @@ export default function StudentFinesPage() {
                         <TableHead className="w-[50px]">#</TableHead>
                         <TableHead>Date</TableHead>
                         <TableHead>Type of Violation</TableHead>
-                        <TableHead>Amount</TableHead>
+                        <TableHead>Fine Amount</TableHead>
                         <TableHead>Balance</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Proof</TableHead>
@@ -306,13 +316,26 @@ export default function StudentFinesPage() {
                           <TableCell className="font-medium">
                             {fine.fine_type}
                           </TableCell>
-                          <TableCell>₱{fine.amount.toFixed(2)}</TableCell>
+                          <TableCell>
+                            <div>₱{fine.amount.toFixed(2)}</div>
+                            {(() => {
+                              const transaction = latestTransactionByFineId.get(fine.id);
+                              const voucherCode = getVoucherCode(fine.voucher_used, transaction?.notes);
+                              const discountedAmount = getDisplayPaidAmount(transaction, fine.original_amount);
+                              return voucherCode ? (
+                                <div className="text-xs text-success">
+                                  Voucher: {voucherCode}
+                                  {discountedAmount !== null && <div>Paid: ₱{discountedAmount.toFixed(2)}</div>}
+                                </div>
+                              ) : null;
+                            })()}
+                          </TableCell>
                           <TableCell>
                             {fine.status === 'Pending' && fine.pending_payment ? (
                               <div className="flex flex-col">
                                 <span>₱{fine.balance.toFixed(2)}</span>
                                 <span className="text-[10px] text-warning">
-                                  Paying: ₱{fine.pending_payment.toFixed(2)}
+                                  Covered: ₱{fine.pending_payment.toFixed(2)}
                                 </span>
                               </div>
                             ) : (
@@ -399,9 +422,20 @@ export default function StudentFinesPage() {
 
                           <div className="flex justify-between text-sm">
                             <div>
-                              <p className="text-muted-foreground">Amount</p>
+                              <p className="text-muted-foreground">Fine Amount</p>
                               <p className="font-medium">
                                 ₱{fine.amount.toFixed(2)}
+                                {(() => {
+                                  const transaction = latestTransactionByFineId.get(fine.id);
+                                  const voucherCode = getVoucherCode(fine.voucher_used, transaction?.notes);
+                                  const discountedAmount = getDisplayPaidAmount(transaction, fine.original_amount);
+                                  return voucherCode ? (
+                                    <span className="block text-xs text-success">
+                                      Voucher: {voucherCode}
+                                      {discountedAmount !== null && <span className="block">Paid: ₱{discountedAmount.toFixed(2)}</span>}
+                                    </span>
+                                  ) : null;
+                                })()}
                               </p>
                             </div>
                             <div className="text-right">
@@ -410,7 +444,7 @@ export default function StudentFinesPage() {
                                 <p className="font-medium">₱{fine.balance.toFixed(2)}</p>
                                 {fine.status === 'Pending' && fine.pending_payment && (
                                   <p className="text-[10px] text-warning">
-                                    Paying: ₱{fine.pending_payment.toFixed(2)}
+                                    Covered: ₱{fine.pending_payment.toFixed(2)}
                                   </p>
                                 )}
                               </div>
