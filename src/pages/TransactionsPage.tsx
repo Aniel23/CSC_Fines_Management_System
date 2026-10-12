@@ -14,7 +14,6 @@ import {
 import { useStudents } from "@/hooks/useStudents";
 import { useTransactions } from "@/hooks/useTransactions";
 import { useAuth } from "@/contexts/AuthContext";
-import { FINE_TYPES as fineTypes } from "@/lib/constants";
 
 export default function TransactionsPage() {
   const { user } = useAuth();
@@ -22,6 +21,9 @@ export default function TransactionsPage() {
   const { students, loading: studentsLoading, error: studentsError } = useStudents();
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [selectedFineType, setSelectedFineType] = useState<string>("all");
+  const fineTypes = Array.from(
+    new Set(transactions.map((transaction) => transaction.fines?.fine_type).filter((type): type is string => Boolean(type))),
+  ).sort((a, b) => a.localeCompare(b));
 
   if (transactionsLoading || studentsLoading) {
     return (

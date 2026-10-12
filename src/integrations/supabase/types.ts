@@ -51,7 +51,7 @@ export type Database = {
           created_at: string
           deleted_at: string | null
           is_archived: boolean | null
-          fine_type: Database["public"]["Enums"]["fine_type"]
+          fine_type: string
           id: string
           notes: string | null
           proof_image: string | null
@@ -70,7 +70,7 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           is_archived?: boolean | null
-          fine_type: Database["public"]["Enums"]["fine_type"]
+          fine_type: string
           id?: string
           notes?: string | null
           proof_image?: string | null
@@ -89,7 +89,7 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           is_archived?: boolean | null
-          fine_type?: Database["public"]["Enums"]["fine_type"]
+          fine_type?: string
           id?: string
           notes?: string | null
           proof_image?: string | null
@@ -337,15 +337,6 @@ export type Database = {
       app_role: "admin" | "student"
       department: "BSIS" | "BPA" | "BTVTED" | "BTVTED-CHS" | string
       fine_status: "Paid" | "Pending" | "To Pay"
-      fine_type:
-        | "Not wearing ID"
-        | "Late enrollment"
-        | "Library fine"
-        | "Laboratory damage"
-        | "Dress code violation"
-        | "Unauthorized absence"
-        | "Property damage"
-        | "Other"
       gender_type: "Male" | "Female" | "Other"
     }
     CompositeTypes: {
@@ -477,16 +468,6 @@ export const Constants = {
       app_role: ["admin", "student"],
       department: ["BSIS", "BPA", "BTVTED"],
       fine_status: ["Paid", "Pending", "To Pay"],
-      fine_type: [
-        "Not wearing ID",
-        "Late enrollment",
-        "Library fine",
-        "Laboratory damage",
-        "Dress code violation",
-        "Unauthorized absence",
-        "Property damage",
-        "Other",
-      ],
       gender_type: ["Male", "Female", "Other"],
     },
   },

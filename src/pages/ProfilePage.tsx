@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAppSettings } from "@/hooks/useAppSettings";
 import { GENDERS } from "@/lib/constants";
+import { parseConfiguredFineTypes } from "@/lib/configuredFineTypes";
 
 export default function ProfilePage() {
   const { user, refreshUserData } = useAuth();
@@ -251,23 +252,19 @@ export default function ProfilePage() {
   const [newCustomFineAmount, setNewCustomFineAmount] = useState("");
 
   const handleAddCustomFineType = async () => {
-    if (!newCustomFineType.trim() || !newCustomFineAmount) {
-      toast.error("Please enter both fine type and amount");
+    const name = newCustomFineType.trim();
+    const amount = Number(newCustomFineAmount);
+    if (!name || !Number.isFinite(amount) || amount <= 0) {
+      toast.error("Enter a violation name and an amount greater than zero");
       return;
     }
 
     try {
-      const currentTypesStr = settings.custom_fine_types || "[]";
-      const currentTypes = JSON.parse(currentTypesStr);
-      
-      const newType = {
-        name: newCustomFineType.trim(),
-        amount: Number(newCustomFineAmount)
-      };
+      const currentTypes = parseConfiguredFineTypes(settings.custom_fine_types);
+      const newType = { name, amount };
 
-      // Check if it already exists
-      if (currentTypes.some((t: any) => t.name.toLowerCase() === newType.name.toLowerCase())) {
-        toast.error("This fine type already exists");
+      if (currentTypes.some((type) => type.name.toLocaleLowerCase() === name.toLocaleLowerCase())) {
+        toast.error("This violation already exists");
         return;
       }
 
@@ -276,22 +273,20 @@ export default function ProfilePage() {
       
       setNewCustomFineType("");
       setNewCustomFineAmount("");
-      toast.success("Custom fine type added successfully");
+      toast.success("Violation added successfully");
     } catch (err: any) {
       console.error("Error adding custom fine type:", err);
-      toast.error("Failed to add custom fine type");
+      toast.error("Failed to add violation");
     }
   };
 
   const handleRemoveCustomFineType = async (typeName: string) => {
     try {
-      const currentTypesStr = settings.custom_fine_types || "[]";
-      const currentTypes = JSON.parse(currentTypesStr);
-      
-      const updatedTypes = currentTypes.filter((t: any) => t.name !== typeName);
+      const currentTypes = parseConfiguredFineTypes(settings.custom_fine_types);
+      const updatedTypes = currentTypes.filter((type) => type.name !== typeName);
       await upsertSetting("custom_fine_types", JSON.stringify(updatedTypes));
       
-      toast.success("Custom fine type removed");
+      toast.success("Violation removed");
     } catch (err: any) {
       console.error("Error removing custom fine type:", err);
       toast.error("Failed to remove custom fine type");
@@ -594,7 +589,7 @@ export default function ProfilePage() {
             <Card className="md:col-span-2">
               <CardHeader>
                 <CardTitle>Admin Settings</CardTitle>
-                <CardDescription>Manage payment QR code and custom fine types.</CardDescription>
+                <CardDescription>Manage payment QR code and the violations available when recording fines.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-8">
                 {/* Payment QR Code Section */}
@@ -639,11 +634,11 @@ export default function ProfilePage() {
 
                 {/* Custom Fine Types Section */}
                 <div className="space-y-4 pt-4">
-                  <h3 className="text-sm font-semibold border-b pb-2">Custom Fine Types</h3>
+                  <h3 className="text-sm font-semibold border-b pb-2">Fine Violations</h3>
                   <div className="space-y-4">
                     <div className="flex gap-4 items-end">
                       <div className="flex-1 space-y-2">
-                        <Label htmlFor="fineType">Fine Name</Label>
+                        <Label htmlFor="fineType">Violation Name</Label>
                         <Input 
                           id="fineType" 
                           placeholder="e.g. Lost Book" 
@@ -652,7 +647,7 @@ export default function ProfilePage() {
                         />
                       </div>
                       <div className="w-32 space-y-2">
-                        <Label htmlFor="fineAmount">Amount (₱)</Label>
+                        <Label htmlFor="fineAmount">Fine Amount (₱)</Label>
                         <Input 
                           id="fineAmount" 
                           type="number" 
@@ -663,24 +658,23 @@ export default function ProfilePage() {
                         />
                       </div>
                       <Button type="button" onClick={handleAddCustomFineType}>
-                        Add Type
+                        Add Violation
                       </Button>
                     </div>
 
                     <div className="border rounded-md divide-y">
                       {(() => {
-                        const typesStr = settings.custom_fine_types || "[]";
-                        const types = JSON.parse(typesStr);
+                        const types = parseConfiguredFineTypes(settings.custom_fine_types);
                         
                         if (types.length === 0) {
                           return (
                             <div className="p-4 text-sm text-center text-muted-foreground">
-                              No custom fine types added yet.
+                              No violations added yet. Add a violation here to make it available in the fine forms.
                             </div>
                           );
                         }
 
-                        return types.map((type: any, index: number) => (
+                        return types.map((type, index) => (
                           <div key={index} className="flex justify-between items-center p-3">
                             <div>
                               <span className="font-medium">{type.name}</span>

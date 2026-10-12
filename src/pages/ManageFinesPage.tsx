@@ -25,8 +25,9 @@ import { useFines } from "@/hooks/useFines";
 import { useStudents } from "@/hooks/useStudents";
 import { useAppSettings } from "@/hooks/useAppSettings";
 import { supabase } from "@/integrations/supabase/client";
-import { FINE_TYPES as fineTypes, FINE_AMOUNTS as fineAmounts, DEFAULT_DEPARTMENTS } from "@/lib/constants";
-import type { FineType, FineStatus } from "@/types";
+import { DEFAULT_DEPARTMENTS } from "@/lib/constants";
+import { parseConfiguredFineTypes } from "@/lib/configuredFineTypes";
+import type { FineStatus } from "@/types";
 import { getUniqueStudentDepartments, getDepartments } from "@/integrations/supabase/queries";
 import { Plus, Loader, User, FileText, AlertCircle, Upload, X, Calendar, Search, Filter, Camera, PhilippinePeso } from "lucide-react";
 
@@ -77,14 +78,12 @@ export default function ManageFinesPage() {
   const { toast } = useToast();
   const { students, loading: studentsLoading, refetch: refetchStudents } = useStudents();
   const { fines, loading: finesLoading, refetch: refetchFines } = useFines();
-  const { settings } = useAppSettings();
+  const { settings, loading: settingsLoading } = useAppSettings();
   
   const [selectedStudent, setSelectedStudent] = useState<string>("");
-  const [selectedFineType, setSelectedFineType] = useState<string>("Not wearing ID");
+  const [selectedFineType, setSelectedFineType] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
-  const [customAmount, setCustomAmount] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [useCustomAmount, setUseCustomAmount] = useState(false);
   const [proofImage, setProofImage] = useState<File | null>(null);
   const [proofImagePreview, setProofImagePreview] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -157,7 +156,7 @@ export default function ManageFinesPage() {
     };
   }, []);
 
-  const loading = studentsLoading || finesLoading;
+  const loading = studentsLoading || finesLoading || settingsLoading;
 
   // Filtered students list
   const filteredStudents = students.filter(student => {
@@ -179,31 +178,22 @@ export default function ManageFinesPage() {
     );
   }, [selectedStudentData]);
 
-  // Combine default and custom fine types
+  // Violations and their standard amounts are managed in the admin profile.
   const allFineTypes = useMemo(() => {
-    let customTypes: any[] = [];
-    try {
-      if (settings.custom_fine_types) {
-        customTypes = JSON.parse(settings.custom_fine_types);
-      }
-    } catch (e) {
-      console.error("Error parsing custom fine types:", e);
-    }
-    
-    return [
-      ...fineTypes.map(t => ({ name: t, amount: fineAmounts[t], isCustom: false })),
-      ...customTypes.map(t => ({ ...t, isCustom: true }))
-    ];
+    return parseConfiguredFineTypes(settings.custom_fine_types);
   }, [settings.custom_fine_types]);
 
-  // Calculate amount based on fine type or custom
-  const amount = useMemo(() => {
-    if (useCustomAmount) {
-      return parseFloat(customAmount) || 0;
+  useEffect(() => {
+    if (!allFineTypes.some((type) => type.name === selectedFineType)) {
+      setSelectedFineType(allFineTypes[0]?.name ?? "");
     }
+  }, [allFineTypes, selectedFineType]);
+
+  // Fine amounts are fixed by the selected admin-configured violation.
+  const amount = useMemo(() => {
     const selectedType = allFineTypes.find(t => t.name === selectedFineType);
     return selectedType ? selectedType.amount : 0;
-  }, [useCustomAmount, customAmount, selectedFineType, allFineTypes]);
+  }, [selectedFineType, allFineTypes]);
 
   // Get student's existing fines
 
@@ -389,25 +379,16 @@ export default function ManageFinesPage() {
       return;
     }
 
-    if (useCustomAmount && (!customAmount || parseFloat(customAmount) <= 0)) {
+    if (!allFineTypes.some((type) => type.name === selectedFineType) || amount <= 0) {
       toast({
         title: "Error",
-        description: "Please enter a valid amount",
+        description: "Add a violation with a valid amount in your admin profile first.",
         variant: "destructive",
       });
       return;
     }
 
-    if (!useCustomAmount && amount <= 0) {
-      toast({
-        title: "Error",
-        description: "Selected fine type has no valid amount",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const finalAmount = Number(amount);
+    const finalAmount = amount;
     if (isNaN(finalAmount) || finalAmount <= 0) {
       toast({
         title: "Error",
@@ -423,7 +404,7 @@ export default function ManageFinesPage() {
       // First insert the fine without the image
       const fineData = {
         student_id: selectedStudent,
-        fine_type: selectedFineType as FineType,
+        fine_type: selectedFineType,
         amount: finalAmount,
         balance: finalAmount,
         status: "To Pay" as FineStatus,
@@ -474,19 +455,18 @@ export default function ManageFinesPage() {
 
       // Reset form
       setSelectedStudent("");
-      setSelectedFineType("Not wearing ID");
+      setSelectedFineType(allFineTypes[0]?.name ?? "");
       setNotes("");
-      setCustomAmount("");
-      setUseCustomAmount(false);
       setFineDate(new Date().toISOString().split('T')[0]);
       clearImage();
 
       // Refetch fines
       await refetchFines();
     } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
       toast({
         title: "Error",
-        description: "Failed to add fine. Please try again.",
+        description: `Failed to add fine: ${message}`,
         variant: "destructive",
       });
     } finally {
@@ -648,11 +628,16 @@ export default function ManageFinesPage() {
                     <SelectContent>
                       {allFineTypes.map((type) => (
                         <SelectItem key={type.name} value={type.name}>
-                          {type.name} (₱{type.amount}) {type.isCustom ? "🌟" : ""}
+                          {type.name} (₱{type.amount})
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  {allFineTypes.length === 0 && (
+                    <p className="text-sm text-destructive">
+                      No violations are configured. Add a violation in Admin Profile before recording a fine.
+                    </p>
+                  )}
                 </div>
 
                 {/* Amount Selection */}
@@ -661,36 +646,9 @@ export default function ManageFinesPage() {
                     <PhilippinePeso className="h-4 w-4" />
                     Amount
                   </Label>
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6">
-                    <label className="flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-muted transition-colors border sm:border-0 border-border">
-                      <input
-                        type="radio"
-                        checked={!useCustomAmount}
-                        onChange={() => setUseCustomAmount(false)}
-                        className="rounded border-border"
-                      />
-                      <span className="text-sm">Standard: ₱{allFineTypes.find(t => t.name === selectedFineType)?.amount || 0}</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-muted transition-colors border sm:border-0 border-border">
-                      <input
-                        type="radio"
-                        checked={useCustomAmount}
-                        onChange={() => setUseCustomAmount(true)}
-                        className="rounded border-border"
-                      />
-                      <span className="text-sm">Custom</span>
-                    </label>
-                  </div>
-                  {useCustomAmount && (
-                    <Input
-                      type="number"
-                      placeholder="Enter custom amount"
-                      value={customAmount}
-                      onChange={(e) => setCustomAmount(e.target.value)}
-                      min="1"
-                      className="mt-2"
-                    />
-                  )}
+                  <p className="text-sm font-medium">
+                    Configured amount: ₱{allFineTypes.find(t => t.name === selectedFineType)?.amount ?? 0}
+                  </p>
                 </div>
 
                 {/* Notes */}
@@ -798,7 +756,7 @@ export default function ManageFinesPage() {
                 <Button
                   type="submit"
                   className="w-full"
-                  disabled={isSubmitting || !selectedStudent}
+                  disabled={isSubmitting || !selectedStudent || allFineTypes.length === 0}
                 >
                   {isSubmitting ? (
                     <>

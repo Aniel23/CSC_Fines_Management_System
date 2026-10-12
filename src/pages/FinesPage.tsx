@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,27 +39,16 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import { Plus, Search, Loader, AlertCircle } from "lucide-react";
-import {
-  FINE_TYPES as fineTypes,
-  FINE_AMOUNTS as fineAmounts,
-} from "@/lib/constants";
-import type { Fine } from "@/types";
+import type { Fine, FineStatus } from "@/types";
+import { parseConfiguredFineTypes } from "@/lib/configuredFineTypes";
 import { createFine, updateFine } from "@/integrations/supabase/queries";
 import { useFines } from "@/hooks/useFines";
 import { useStudents } from "@/hooks/useStudents";
+import { useAppSettings } from "@/hooks/useAppSettings";
 
 const fineSchema = z.object({
   student_id: z.string().min(1, "Please select a student"),
-  fine_type: z.enum([
-    "Not wearing ID",
-    "Late enrollment",
-    "Library fine",
-    "Laboratory damage",
-    "Dress code violation",
-    "Unauthorized absence",
-    "Property damage",
-    "Other",
-  ]),
+  fine_type: z.string().min(1, "Please select a configured violation"),
   notes: z.string().optional(),
 });
 
@@ -74,24 +63,37 @@ export default function FinesPage() {
     fines,
     loading: finesLoading,
     error: finesError,
+    refetch: refetchFines,
   } = useFines();
   const {
     students: fetchedStudents = [],
     loading: studentsLoading,
     error: studentsError,
   } = useStudents();
+  const { settings, loading: settingsLoading } = useAppSettings();
+  const configuredFineTypes = useMemo(
+    () => parseConfiguredFineTypes(settings.custom_fine_types),
+    [settings.custom_fine_types],
+  );
   
   const form = useForm<FineFormValues>({
     resolver: zodResolver(fineSchema),
     defaultValues: {
       student_id: "",
-      fine_type: "Not wearing ID",
+      fine_type: "",
       notes: "",
     },
   });
 
+  useEffect(() => {
+    const currentType = form.getValues("fine_type");
+    if (!configuredFineTypes.some((type) => type.name === currentType)) {
+      form.setValue("fine_type", configuredFineTypes[0]?.name ?? "");
+    }
+  }, [configuredFineTypes, form]);
+
   // Show loading state
-  if (finesLoading || studentsLoading) {
+  if (finesLoading || studentsLoading || settingsLoading) {
     return (
       <AppLayout>
         <div className="content-wrapper pt-0 flex items-center justify-center min-h-96">
@@ -122,26 +124,6 @@ export default function FinesPage() {
     );
   }
 
-  // Check if data is empty
-  if (fines.length === 0 || fetchedStudents.length === 0) {
-    return (
-      <AppLayout>
-        <div className="content-wrapper pt-0">
-          <Card className="border-warning/50 bg-warning/5">
-            <CardHeader>
-              <CardTitle className="text-warning">No Data Available</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-sm text-warning/80">
-                No fines recorded yet. Please check back later or create a new fine.
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-      </AppLayout>
-    );
-  }
-
   const finesWithStudents = fines.map((fine) => ({
     ...fine,
     student: fetchedStudents.find((s) => s.id === fine.student_id),
@@ -157,7 +139,13 @@ export default function FinesPage() {
   const totalBalance = fines.reduce((sum, fine) => sum + fine.balance, 0);
 
   const onSubmit = async (data: FineFormValues) => {
-    const amount = fineAmounts[data.fine_type];
+    const violation = configuredFineTypes.find((type) => type.name === data.fine_type);
+    if (!violation) {
+      toast.error("Add a violation in Admin Profile before recording a fine.");
+      return;
+    }
+
+    const amount = violation.amount;
     try {
       const { error } = await createFine({
         student_id: data.student_id,
@@ -172,7 +160,12 @@ export default function FinesPage() {
       
       toast.success("Fine recorded successfully");
       setIsDialogOpen(false);
-      form.reset();
+      form.reset({
+        student_id: "",
+        fine_type: configuredFineTypes[0]?.name ?? "",
+        notes: "",
+      });
+      await refetchFines();
     } catch (error: any) {
       console.error("Error creating fine:", error);
       toast.error("Failed to record fine: " + error.message);
@@ -214,7 +207,7 @@ export default function FinesPage() {
 
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button>
+              <Button disabled={configuredFineTypes.length === 0 || fetchedStudents.length === 0}>
                 <Plus className="mr-2 h-4 w-4" />
                 Add Fine
               </Button>
@@ -225,6 +218,11 @@ export default function FinesPage() {
                   Record New Fine
                 </DialogTitle>
               </DialogHeader>
+              {configuredFineTypes.length === 0 && (
+                <p className="text-sm text-destructive">
+                  No violations are configured. Add a violation in Admin Profile before recording a fine.
+                </p>
+              )}
               <Form {...form}>
                 <form
                   onSubmit={form.handleSubmit(onSubmit)}
@@ -274,9 +272,9 @@ export default function FinesPage() {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {fineTypes.map((type) => (
-                              <SelectItem key={type} value={type}>
-                                {type} - ₱{fineAmounts[type]}
+                            {configuredFineTypes.map((type) => (
+                              <SelectItem key={type.name} value={type.name}>
+                                {type.name} - ₱{type.amount}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -308,7 +306,7 @@ export default function FinesPage() {
                     >
                       Cancel
                     </Button>
-                    <Button type="submit">
+                    <Button type="submit" disabled={configuredFineTypes.length === 0 || fetchedStudents.length === 0}>
                       Record Fine
                     </Button>
                   </div>

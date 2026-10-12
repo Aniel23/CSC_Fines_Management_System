@@ -4,15 +4,7 @@ export type Gender = "Male" | "Female" | "Other";
 
 export type FineStatus = "Paid" | "Pending" | "To Pay";
 
-export type FineType =
-  | "Not wearing ID"
-  | "Late enrollment"
-  | "Library fine"
-  | "Laboratory damage"
-  | "Dress code violation"
-  | "Unauthorized absence"
-  | "Property damage"
-  | "Other";
+export type FineType = string;
 
 export interface Student {
   id: string;
